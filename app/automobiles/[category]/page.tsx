@@ -93,6 +93,11 @@ export default function AutoCategoryPage() {
     if (selectedItem?.id === id) setSelectedItem(null);
   }, [selectedItem]);
 
+  const handleItemUpdated = useCallback((updated: AutoItem) => {
+    setItems((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+    setSelectedItem((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
+  }, []);
+
   const handleValuationComplete = useCallback((price: number) => {
     if (!valuationItem) return;
     setItems((prev) =>
@@ -306,6 +311,7 @@ export default function AutoCategoryPage() {
           onClose={() => setSelectedItem(null)}
           onDelete={handleItemDeleted}
           onValuationSaved={handleDetailValuation}
+          onItemUpdated={handleItemUpdated}
         />
       )}
 

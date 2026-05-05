@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { IoDItem, IoDImage, ComparableSale, CONDITION_COLORS, IOD_CATEGORY_LABELS } from "@/lib/types";
+import EditIoDModal from "@/components/EditIoDModal";
 
 interface IoDDetailModalProps {
   item: IoDItem;
@@ -46,12 +47,14 @@ export default function IoDDetailModal({
   onClose,
   onDelete,
   onValuationSaved,
+  onItemUpdated,
 }: IoDDetailModalProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const [valuations, setValuations] = useState<IoDValuation[]>([]);
   const [valuationsLoaded, setValuationsLoaded] = useState(false);
@@ -190,6 +193,15 @@ export default function IoDDetailModal({
               <h2 className="text-lg font-bold text-text leading-snug max-w-[480px]">{item.short_description}</h2>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-text hover:bg-surface-3 border border-border transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                </svg>
+                Edit
+              </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
@@ -482,6 +494,17 @@ export default function IoDDetailModal({
           </div>
         </div>
       </div>
+
+      {showEditModal && (
+        <EditIoDModal
+          item={item}
+          onClose={() => setShowEditModal(false)}
+          onItemUpdated={(updated) => {
+            setShowEditModal(false);
+            onItemUpdated?.(updated);
+          }}
+        />
+      )}
 
       {/* Lightbox */}
       {lightboxOpen && images.length > 0 && (
