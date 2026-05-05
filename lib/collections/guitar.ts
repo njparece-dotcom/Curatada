@@ -1,0 +1,28 @@
+import type { CollectionConfig } from "./types";
+
+export const guitarConfig: CollectionConfig = {
+  label: "guitar",
+  table: "guitar_items",
+  alias: "gi",
+  imagesTable: "guitar_images",
+  imageFkColumn: "guitar_item_id",
+  valuationsTable: "guitar_valuations",
+  valuationFkColumn: "guitar_item_id",
+  validCategories: ["electric-guitars", "acoustic-guitars", "amplifiers", "pedals"],
+  fields: [
+    { name: "brand", required: true, trim: true },
+    { name: "model", required: true, trim: true },
+    { name: "year" },
+    { name: "serial_number", trim: true },
+    { name: "condition", required: true },
+    { name: "purchase_price" },
+    { name: "purchase_source", trim: true },
+    { name: "color_finish", trim: true },
+    { name: "short_description", trim: true },
+    { name: "link", trim: true },
+    { name: "notes", trim: true },
+  ],
+  conditionRequired: true,
+  patchSetUpdatedAt: false,
+  forceDynamic: false,
+};

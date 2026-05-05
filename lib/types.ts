@@ -41,6 +41,7 @@ export interface GuitarImage {
   mime_type: string | null;
   size: number | null;
   is_primary: boolean;
+  sort_order: number;
   created_at: string;
 }
 

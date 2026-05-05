@@ -1,0 +1,33 @@
+import type { CollectionConfig } from "./types";
+
+export const autoConfig: CollectionConfig = {
+  label: "automobile",
+  table: "automobiles",
+  alias: "a",
+  imagesTable: "auto_images",
+  imageFkColumn: "auto_id",
+  valuationsTable: "auto_valuations",
+  valuationFkColumn: "auto_id",
+  validCategories: ["collection", "household"],
+  fields: [
+    { name: "brand", required: true, trim: true },
+    { name: "model", required: true, trim: true },
+    { name: "year" },
+    { name: "description", trim: true },
+    { name: "trim_level", trim: true },
+    { name: "engine", trim: true },
+    { name: "transmission", trim: true },
+    { name: "mileage" },
+    { name: "condition" },
+    { name: "body_style", trim: true },
+    { name: "color", trim: true },
+    { name: "vin", trim: true },
+    { name: "purchase_price" },
+    { name: "purchase_date" },
+    { name: "purchase_source", trim: true },
+    { name: "notes", trim: true },
+  ],
+  conditionRequired: false,
+  patchSetUpdatedAt: true,
+  forceDynamic: true,
+};
