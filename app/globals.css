@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@300;400;700&family=Manrope:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: #121416;
+  color: #e2e2e5;
+  font-family: 'Manrope', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0c0e10;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #444748;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8e9192;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #e9c176;
+  outline-offset: 2px;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-content {
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Card hover effect */
+.item-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.item-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Image placeholder */
+.image-placeholder {
+  background: linear-gradient(135deg, #1e2022 0%, #282a2c 100%);
+}
+
+/* Gradient text — gold shimmer */
+.gradient-text {
+  background: linear-gradient(135deg, #e9c176 0%, #ffdea5 50%, #e9c176 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Vault gradient — primary gold to deep dark */
+.vault-gradient {
+  background: linear-gradient(135deg, #e9c176 0%, #1a1000 100%);
+}
+
+/* Glass panel — frosted dark surface */
+.glass-panel {
+  background: rgba(51, 53, 55, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Selection highlight */
+::selection {
+  background: rgba(233, 193, 118, 0.3);
+}

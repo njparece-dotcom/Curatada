@@ -1,0 +1,80 @@
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        // ── Existing aliases remapped to MD3 cool-charcoal palette ──
+        background: "#121416",
+        surface: "#121416",
+        "surface-2": "#1e2022",
+        "surface-3": "#282a2c",
+        border: "#2e3032",
+        "border-2": "#444748",
+        accent: "#e9c176",
+        "accent-hover": "#ffdea5",
+        "accent-dim": "#e9c17620",
+        text: "#e2e2e5",
+        "text-muted": "#c4c7c7",
+        "text-dim": "#8e9192",
+
+        // ── MD3 names for TopNav / Sidebar ──
+        "surface-container-lowest": "#0c0e10",
+        "surface-container-low": "#1a1c1e",
+        "surface-container": "#1e2022",
+        "surface-container-high": "#282a2c",
+        "surface-container-highest": "#333537",
+        "surface-variant": "#333537",
+        "surface-bright": "#37393b",
+        "surface-dim": "#121416",
+        outline: "#8e9192",
+        "outline-variant": "#444748",
+        "on-surface": "#e2e2e5",
+        "on-surface-variant": "#c4c7c7",
+        primary: "#e9c176",
+        "primary-fixed": "#ffdea5",
+        "primary-fixed-dim": "#e9c176",
+        "primary-container": "#1a1000",
+        "on-primary": "#412d00",
+        "on-primary-fixed": "#261900",
+        "inverse-primary": "#775a19",
+        secondary: "#c1c7d2",
+        "secondary-container": "#414750",
+        "on-secondary": "#2b3139",
+        "on-secondary-container": "#b0b5c0",
+        tertiary: "#d9c2b2",
+        "tertiary-container": "#1b1007",
+        "on-tertiary": "#3c2e22",
+        "on-tertiary-container": "#8d7a6b",
+        "surface-tint": "#e9c176",
+        "inverse-surface": "#e2e2e5",
+        "inverse-on-surface": "#2f3133",
+        error: "#ffb4ab",
+        "error-container": "#93000a",
+        "on-error": "#690005",
+        "on-error-container": "#ffdad6",
+        "on-background": "#e2e2e5",
+      },
+      fontFamily: {
+        sans: ["Manrope", "system-ui", "sans-serif"],
+        headline: ["Noto Serif", "serif"],
+        label: ["Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
+        // keep old display alias pointing at Noto Serif for any legacy references
+        display: ["Noto Serif", "serif"],
+      },
+      borderRadius: {
+        xl: "0.5rem",
+        "2xl": "0.75rem",
+        "3xl": "1rem",
+      },
+    },
+  },
+  plugins: [],
+};
+export default config;

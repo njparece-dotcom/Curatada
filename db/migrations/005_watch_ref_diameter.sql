@@ -1,0 +1,3 @@
+ALTER TABLE watch_items
+  ADD COLUMN IF NOT EXISTS reference_number VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS case_diameter VARCHAR(50);

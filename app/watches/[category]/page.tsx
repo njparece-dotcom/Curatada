@@ -1,0 +1,373 @@
+"use client";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useParams } from "next/navigation";
+import {
+  WatchItem,
+  WatchCategory,
+  WATCH_CATEGORY_LABELS,
+  WATCH_CATEGORIES,
+} from "@/lib/types";
+import WatchCard from "@/components/WatchCard";
+import WatchListView from "@/components/WatchListView";
+import AddWatchModal from "@/components/AddWatchModal";
+import WatchDetailModal from "@/components/WatchDetailModal";
+import WatchValuationPromptModal from "@/components/WatchValuationPromptModal";
+import WatchCSVImportModal from "@/components/WatchCSVImportModal";
+import { useRevalue, needsRevalue } from "@/lib/RevalueContext";
+
+type SortField = "date" | "brand" | "value";
+type SortDir = "asc" | "desc";
+type ViewMode = "tiles" | "list";
+
+export default function WatchCategoryPage() {
+  const params = useParams();
+  const category = params.category as WatchCategory;
+
+  const [items, setItems] = useState<WatchItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<WatchItem | null>(null);
+  const [valuationItem, setValuationItem] = useState<WatchItem | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  const [sortBy, setSortBy] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [viewMode, setViewMode] = useState<ViewMode>("tiles");
+
+  const { startRevalue, state: revalueState } = useRevalue();
+
+  const isValidCategory = WATCH_CATEGORIES.includes(category);
+
+  const fetchItems = useCallback(async () => {
+    if (!isValidCategory) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/watches?category=${category}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      setItems(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, isValidCategory]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  const sortedItems = useMemo(() => {
+    const copy = [...items];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "date") {
+        cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      } else if (sortBy === "brand") {
+        cmp = (a.brand || "").localeCompare(b.brand || "");
+      } else if (sortBy === "value") {
+        const aVal = Number(a.latest_ai_price ?? a.latest_user_price ?? a.purchase_price ?? 0);
+        const bVal = Number(b.latest_ai_price ?? b.latest_user_price ?? b.purchase_price ?? 0);
+        cmp = aVal - bVal;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [items, sortBy, sortDir]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortDir(field === "brand" ? "asc" : "desc");
+    }
+  };
+
+  const handleItemAdded = useCallback((newItem: WatchItem, offerValuation?: boolean) => {
+    setItems((prev) => [newItem, ...prev]);
+    setShowAddModal(false);
+    if (offerValuation) setValuationItem(newItem);
+  }, []);
+
+  const handleItemDeleted = useCallback((id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    if (selectedItem?.id === id) setSelectedItem(null);
+  }, [selectedItem]);
+
+  const handleValuationComplete = useCallback((price: number) => {
+    if (!valuationItem) return;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === valuationItem.id
+          ? { ...item, latest_ai_price: price, latest_ai_price_date: new Date().toISOString() }
+          : item
+      )
+    );
+  }, [valuationItem]);
+
+  const handleItemUpdated = useCallback((updated: WatchItem) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === updated.id
+          ? {
+              ...updated,
+              latest_ai_price: item.latest_ai_price,
+              latest_ai_price_date: item.latest_ai_price_date,
+              latest_user_price: item.latest_user_price,
+              latest_user_price_date: item.latest_user_price_date,
+            }
+          : item
+      )
+    );
+    setSelectedItem(updated);
+  }, []);
+
+  const handleDetailValuation = useCallback((price: number, type: "ai" | "user") => {
+    if (!selectedItem) return;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== selectedItem.id) return item;
+        if (type === "ai") return { ...item, latest_ai_price: price, latest_ai_price_date: new Date().toISOString() };
+        return { ...item, latest_user_price: price, latest_user_price_date: new Date().toISOString() };
+      })
+    );
+  }, [selectedItem]);
+
+  const pendingRevalue = useMemo(() => items.filter(needsRevalue).length, [items]);
+
+  const runBatchRevalue = useCallback(() => {
+    if (pendingRevalue === 0) return;
+    startRevalue(items, category, (id, price) => {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === id
+            ? { ...it, latest_ai_price: price, latest_ai_price_date: new Date().toISOString() }
+            : it
+        )
+      );
+    }, "/api/watches");
+  }, [items, category, startRevalue, pendingRevalue]);
+
+  if (!isValidCategory) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center h-full">
+        <div className="text-6xl mb-4">⌚</div>
+        <h1 className="text-2xl font-bold text-text mb-2">Category Not Found</h1>
+        <p className="text-text-muted">The category &quot;{category}&quot; does not exist.</p>
+      </div>
+    );
+  }
+
+  const SortButton = ({ field, label }: { field: SortField; label: string }) => (
+    <button
+      onClick={() => toggleSort(field)}
+      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+        sortBy === field
+          ? "bg-accent/10 text-accent border border-accent/20"
+          : "text-text-muted hover:text-text hover:bg-surface-3 border border-transparent"
+      }`}
+    >
+      {label}
+      {sortBy === field && (
+        <svg
+          className={`w-3 h-3 transition-transform ${sortDir === "asc" ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      )}
+    </button>
+  );
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2 text-text-muted text-sm mb-1">
+            <span>Watches</span>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="text-text">{WATCH_CATEGORY_LABELS[category]}</span>
+          </div>
+          <h1 className="text-3xl font-bold text-text">{WATCH_CATEGORY_LABELS[category]}</h1>
+          {!loading && (
+            <p className="text-text-muted text-sm mt-1">
+              {items.length} item{items.length !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {items.length > 0 && (
+            <button
+              onClick={runBatchRevalue}
+              disabled={revalueState?.isRunning || pendingRevalue === 0}
+              className="flex items-center gap-2 bg-surface-2 hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed border border-border text-text font-medium px-4 py-2.5 rounded-xl transition-colors duration-150 text-sm"
+            >
+              <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+              Revalue Collection
+              {pendingRevalue > 0 && (
+                <span className="bg-accent/20 text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingRevalue}
+                </span>
+              )}
+            </button>
+          )}
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-surface-2 hover:bg-surface-3 border border-border text-text font-medium px-4 py-2.5 rounded-xl transition-colors duration-150 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            Import CSV
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-white font-medium px-5 py-2.5 rounded-xl transition-colors duration-150 shadow-lg shadow-accent/20"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add New Item
+          </button>
+        </div>
+      </div>
+
+      {/* Toolbar: sort + view toggle */}
+      {!loading && items.length > 0 && (
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-text-dim mr-2">Sort by</span>
+            <SortButton field="date" label="Date Added" />
+            <SortButton field="brand" label="Brand" />
+            <SortButton field="value" label="Value" />
+          </div>
+
+          <div className="flex items-center gap-1 bg-surface-2 border border-border rounded-xl p-1">
+            <button
+              onClick={() => setViewMode("tiles")}
+              title="Tile view"
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                viewMode === "tiles" ? "bg-surface-3 text-text" : "text-text-dim hover:text-text"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              title="List view"
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                viewMode === "list" ? "bg-surface-3 text-text" : "text-text-dim hover:text-text"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-surface border border-border rounded-2xl overflow-hidden animate-pulse">
+              <div className="aspect-[4/3] bg-surface-2" />
+              <div className="p-4 space-y-2">
+                <div className="h-4 bg-surface-3 rounded w-3/4" />
+                <div className="h-3 bg-surface-3 rounded w-1/2" />
+                <div className="h-6 bg-surface-3 rounded w-1/3 mt-3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-20 h-20 rounded-2xl bg-surface-2 border border-border flex items-center justify-center mb-5">
+            <svg className="w-10 h-10 text-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-text mb-2">No {WATCH_CATEGORY_LABELS[category]} Yet</h2>
+          <p className="text-text-muted text-sm mb-6 max-w-xs">Start building your collection by adding your first timepiece.</p>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-white font-medium px-5 py-2.5 rounded-xl transition-colors duration-150"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add First Timepiece
+          </button>
+        </div>
+      ) : viewMode === "tiles" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {sortedItems.map((item) => (
+            <WatchCard
+              key={item.id}
+              item={item}
+              onClick={() => setSelectedItem(item)}
+              onDelete={handleItemDeleted}
+            />
+          ))}
+        </div>
+      ) : (
+        <WatchListView
+          items={sortedItems}
+          onItemClick={(item) => setSelectedItem(item)}
+          onDelete={handleItemDeleted}
+        />
+      )}
+
+      {showAddModal && (
+        <AddWatchModal
+          defaultCategory={category}
+          onClose={() => setShowAddModal(false)}
+          onItemAdded={handleItemAdded}
+        />
+      )}
+
+      {selectedItem && (
+        <WatchDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onDelete={handleItemDeleted}
+          onValuationSaved={handleDetailValuation}
+          onItemUpdated={handleItemUpdated}
+        />
+      )}
+
+      {showImportModal && (
+        <WatchCSVImportModal
+          defaultCategory={category}
+          onClose={() => setShowImportModal(false)}
+          onImportComplete={() => {
+            setShowImportModal(false);
+            fetchItems();
+          }}
+        />
+      )}
+
+      {valuationItem && (
+        <WatchValuationPromptModal
+          item={valuationItem}
+          onClose={() => setValuationItem(null)}
+          onValuationComplete={handleValuationComplete}
+        />
+      )}
+    </div>
+  );
+}

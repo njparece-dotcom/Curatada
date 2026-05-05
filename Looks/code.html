@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Qlection | Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@300;400;700&amp;family=Manrope:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-container": "#b0b5c0",
+              "outline-variant": "#444748",
+              "secondary-fixed": "#dde3ee",
+              "on-tertiary-fixed": "#25190f",
+              "on-primary-fixed-variant": "#5d4201",
+              "error-container": "#93000a",
+              "tertiary-fixed": "#f6decd",
+              "outline": "#8e9192",
+              "on-error": "#690005",
+              "inverse-surface": "#e2e2e5",
+              "surface-container": "#1e2022",
+              "on-primary-container": "#997836",
+              "tertiary-fixed-dim": "#d9c2b2",
+              "on-surface": "#e2e2e5",
+              "secondary": "#c1c7d2",
+              "surface-container-low": "#1a1c1e",
+              "surface-tint": "#e9c176",
+              "primary-container": "#1a1000",
+              "primary-fixed-dim": "#e9c176",
+              "on-primary": "#412d00",
+              "on-tertiary-container": "#8d7a6b",
+              "tertiary-container": "#1b1007",
+              "tertiary": "#d9c2b2",
+              "on-surface-variant": "#c4c7c7",
+              "surface-dim": "#121416",
+              "surface": "#121416",
+              "primary-fixed": "#ffdea5",
+              "background": "#121416",
+              "on-background": "#e2e2e5",
+              "secondary-container": "#414750",
+              "on-tertiary-fixed-variant": "#534437",
+              "error": "#ffb4ab",
+              "surface-container-lowest": "#0c0e10",
+              "on-secondary": "#2b3139",
+              "surface-bright": "#37393b",
+              "inverse-on-surface": "#2f3133",
+              "on-error-container": "#ffdad6",
+              "primary": "#e9c176",
+              "on-tertiary": "#3c2e22",
+              "secondary-fixed-dim": "#c1c7d2",
+              "on-secondary-fixed": "#161c24",
+              "inverse-primary": "#775a19",
+              "surface-container-highest": "#333537",
+              "on-primary-fixed": "#261900",
+              "on-secondary-fixed-variant": "#414750",
+              "surface-container-high": "#282a2c",
+              "surface-variant": "#333537"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Manrope"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-gradient {
+            background: linear-gradient(135deg, #e9c176 0%, #1a1000 100%);
+        }
+        .glass-panel {
+            background: rgba(51, 53, 55, 0.6);
+            backdrop-filter: blur(20px);
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0c0e10; }
+        ::-webkit-scrollbar-thumb { background: #444748; }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary/30">
+<!-- TopNavBar -->
+<nav class="flex justify-between items-center w-full px-8 py-4 bg-[#121416] docked full-width top-0 z-50 fixed">
+<div class="flex items-center gap-8">
+<span class="font-noto-serif text-xl font-bold text-[#e9c176] tracking-widest uppercase">The Qlection</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-[#e9c176] font-semibold border-b-2 border-[#e9c176] transition-colors duration-300" href="#">Dashboard</a>
+<a class="text-slate-400 font-medium hover:bg-[#282a2c] hover:text-[#e9c176] transition-colors duration-300 px-2 py-1" href="#">Collection</a>
+<a class="text-slate-400 font-medium hover:bg-[#282a2c] hover:text-[#e9c176] transition-colors duration-300 px-2 py-1" href="#">Insights</a>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden lg:flex items-center bg-surface-container-lowest px-4 py-2 rounded-lg">
+<span class="material-symbols-outlined text-outline text-sm mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 text-on-surface" placeholder="Search archives..." type="text"/>
+</div>
+<span class="font-noto-serif text-display-lg tracking-tight font-light text-[#e9c176]">Total Value: $1.2M</span>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-outline cursor-pointer hover:text-primary transition-colors">notifications</span>
+<span class="material-symbols-outlined text-outline cursor-pointer hover:text-primary transition-colors">account_circle</span>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 pt-24 bg-[#0c0e10] border-r border-[#444748]/15 z-40">
+<div class="px-6 mb-8">
+<h2 class="font-noto-serif text-[#e9c176] font-bold text-lg">Digital Qlection</h2>
+<p class="text-[10px] uppercase tracking-[0.2em] text-outline">Curated Sanctum</p>
+</div>
+<nav class="flex-grow">
+<a class="text-[#e9c176] bg-[#1e2022] border-r-2 border-[#e9c176] px-6 py-4 flex items-center gap-4 group transition-all duration-300" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-manrope text-label-md uppercase tracking-widest font-semibold">Dashboard</span>
+</a>
+<a class="text-slate-500 hover:text-slate-200 hover:bg-[#1e2022] px-6 py-4 flex items-center gap-4 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-manrope text-label-md uppercase tracking-widest font-semibold">My Collection</span>
+</a>
+<a class="text-slate-500 hover:text-slate-200 hover:bg-[#1e2022] px-6 py-4 flex items-center gap-4 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span class="font-manrope text-label-md uppercase tracking-widest font-semibold">Insights</span>
+</a>
+<a class="text-slate-500 hover:text-slate-200 hover:bg-[#1e2022] px-6 py-4 flex items-center gap-4 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">add_box</span>
+<span class="font-manrope text-label-md uppercase tracking-widest font-semibold">Add New</span>
+</a>
+</nav>
+<div class="p-6">
+<button class="w-full vault-gradient text-on-primary-fixed py-3 font-bold text-xs uppercase tracking-widest rounded shadow-lg shadow-primary/10 active:scale-[0.98] transition-transform">
+                Generate Report
+            </button>
+</div>
+<div class="border-t border-outline-variant/20 py-4">
+<a class="text-slate-500 hover:text-slate-200 px-6 py-3 flex items-center gap-4 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-manrope text-label-md uppercase tracking-widest font-semibold">Settings</span>
+</a>
+<a class="text-slate-500 hover:text-slate-200 px-6 py-3 flex items-center gap-4 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-manrope text-label-md uppercase tracking-widest font-semibold">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="md:ml-64 pt-24 px-8 pb-12 min-h-screen bg-surface">
+<!-- Hero Section: Portfolio Value -->
+<section class="mb-12">
+<div class="relative overflow-hidden rounded-lg bg-surface-container h-64 flex items-center px-12">
+<div class="z-10 relative">
+<h3 class="font-label text-xs uppercase tracking-[0.4em] text-primary mb-2">Portfolio Overview</h3>
+<h1 class="font-headline text-6xl font-light text-white tracking-tighter mb-4">$1,248,500.00</h1>
+<div class="flex items-center gap-4">
+<span class="flex items-center gap-1 text-green-400 text-sm font-semibold">
+<span class="material-symbols-outlined text-sm">trending_up</span> +12.4%
+                        </span>
+<span class="text-outline text-xs uppercase tracking-widest">Growth since last quarter</span>
+</div>
+</div>
+<div class="absolute right-0 top-0 bottom-0 w-1/2 opacity-20 pointer-events-none">
+<div class="absolute inset-0 vault-gradient mix-blend-overlay"></div>
+<img alt="Luxury Watch Macro" class="w-full h-full object-cover" data-alt="Macro close-up of a high-end mechanical watch movement with brass gears and jewels in dramatic low-key lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1ZLXdYfFaHoh1BPo3W5fvtUAne1A5bxy6bFXkKq9eKQPzDJv6zXppevqojp1ZngbxPJhsy0EknFptg6D0YghfMI7esyP4GCZTZqoXbxVLK72jhFANNj3H8myOPbtB8MBo5wF8U9XmPskNnphFtmv4fz5pNAwBKfjOFOb7YdDbdC4fhs18wt9vUmvnybUvGIyRcXuuDpAyjBTXrklxoF7Z-FJ_CV6GAcqlQBgot-YKEYg90bCbNAYu5y0fRhKRENj7WlNdr2obqAM"/>
+</div>
+</div>
+</section>
+<!-- Bento Grid: Analytics & Portfolios -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
+<!-- Value Over Time Chart Placeholder -->
+<div class="lg:col-span-8 bg-surface-container rounded-lg p-8 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-8">
+<div>
+<h4 class="font-headline text-2xl text-white">Value Projection</h4>
+<p class="text-outline text-xs uppercase tracking-widest mt-1">Market trajectory 2023-2024</p>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1 text-[10px] bg-surface-container-highest text-primary rounded">1Y</button>
+<button class="px-3 py-1 text-[10px] text-outline hover:text-white transition-colors">5Y</button>
+<button class="px-3 py-1 text-[10px] text-outline hover:text-white transition-colors">MAX</button>
+</div>
+</div>
+<!-- Mock Line Chart -->
+<div class="relative h-48 w-full flex items-end gap-1">
+<div class="flex-grow flex items-end px-2">
+<svg class="w-full h-full overflow-visible" viewbox="0 0 1000 200">
+<path d="M0,180 Q100,170 200,150 T400,120 T600,80 T800,40 T1000,10" fill="none" stroke="url(#chartGradient)" stroke-width="3"></path>
+<defs>
+<lineargradient id="chartGradient" x1="0" x2="1" y1="0" y2="0">
+<stop offset="0%" stop-color="#444748"></stop>
+<stop offset="100%" stop-color="#e9c176"></stop>
+</lineargradient>
+</defs>
+<circle cx="1000" cy="10" fill="#e9c176" r="4"></circle>
+</svg>
+</div>
+</div>
+<div class="flex justify-between mt-4 text-[10px] text-outline-variant uppercase tracking-widest">
+<span>JAN 23</span>
+<span>APR 23</span>
+<span>JUL 23</span>
+<span>OCT 23</span>
+<span>JAN 24</span>
+</div>
+</div>
+</div>
+<!-- Recent Addition Side Card -->
+<div class="lg:col-span-4 flex flex-col gap-8">
+<div class="bg-surface-container-high rounded-lg p-6 group cursor-pointer hover:bg-surface-container-highest transition-all duration-300">
+<div class="flex items-center justify-between mb-4">
+<h4 class="font-headline text-lg text-white">Recent Entry</h4>
+<span class="material-symbols-outlined text-primary text-sm">open_in_new</span>
+</div>
+<div class="flex gap-4">
+<div class="w-20 h-20 rounded bg-surface-container-lowest overflow-hidden flex-shrink-0">
+<img alt="Guitar Headstock" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" data-alt="Extreme close-up of a vintage electric guitar headstock showing wood grain and metal machine heads in moody lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1u-kkpjfx_GLKH8Gy3zNcQ_pERscbFnpnq0KdlxnWFgOIdEr8-7zJ21QVb4d9ytX3HJ4xXGkiUiBYeghFgP1a9eiBnwj_GyNE0-ICcm5auo_QXE3zSsO53qJ1DmJ05eEPWh8P7vwb3O8rIMJ7hmvDfOIRywbsBLvYFahCRv56QmFyyeDZZEEPjQzD1MWAm4K-569m5uMlpcTgIv1L2Hb9I3jHYScLga-Njp8Qx3LjnKJwuoQtv2_huE8Cwmbk3LEWQIyt_7BXP0U"/>
+</div>
+<div>
+<p class="font-headline text-white text-base">'59 Reissue Les Paul</p>
+<p class="text-outline text-xs mt-1">Heritage Cherry Sunburst</p>
+<p class="text-primary font-label font-bold text-sm mt-2">$14,200</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg p-6 flex flex-col justify-center text-center">
+<span class="material-symbols-outlined text-primary-container bg-primary p-3 rounded-full self-center mb-4">verified</span>
+<h5 class="text-white font-headline text-lg">Identity Verified</h5>
+<p class="text-outline text-xs mt-1 leading-relaxed px-4">Your qlection is secured with 256-bit encryption and multisig provenance tracking.</p>
+</div>
+</div>
+</div>
+<!-- Portfolio Category Split -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Guitar Portfolio Card -->
+<div class="bg-surface-container rounded-lg p-8 relative overflow-hidden group">
+<div class="relative z-10">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary">piano</span>
+<h3 class="font-headline text-2xl text-white">Guitar Portfolio</h3>
+</div>
+<div class="flex items-baseline gap-2 mb-8">
+<span class="text-4xl font-headline text-white">42</span>
+<span class="text-outline text-xs uppercase tracking-widest font-bold">Instruments</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-sm">
+<span class="text-outline">Market Trend</span>
+<span class="text-green-400 font-bold">+8.2%</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-1">
+<div class="bg-primary h-full w-[82%]"></div>
+</div>
+<div class="flex justify-between items-center text-xs uppercase tracking-widest text-outline pt-2">
+<span>Last Valuation: Oct 2023</span>
+<button class="text-primary hover:underline">View All</button>
+</div>
+</div>
+</div>
+<!-- Artistic Overlay -->
+<div class="absolute -right-12 -bottom-12 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-[12rem]">music_note</span>
+</div>
+</div>
+<!-- Watch Portfolio Card -->
+<div class="bg-surface-container rounded-lg p-8 relative overflow-hidden group">
+<div class="relative z-10">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary">watch</span>
+<h3 class="font-headline text-2xl text-white">Watch Portfolio</h3>
+</div>
+<div class="flex items-baseline gap-2 mb-8">
+<span class="text-4xl font-headline text-white">12</span>
+<span class="text-outline text-xs uppercase tracking-widest font-bold">Timepieces</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-sm">
+<span class="text-outline">Market Trend</span>
+<span class="text-primary font-bold">+18.4%</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-1">
+<div class="bg-primary h-full w-[18%]"></div>
+</div>
+<div class="flex justify-between items-center text-xs uppercase tracking-widest text-outline pt-2">
+<span>Last Valuation: Nov 2023</span>
+<button class="text-primary hover:underline">View All</button>
+</div>
+</div>
+</div>
+<!-- Artistic Overlay -->
+<div class="absolute -right-12 -bottom-12 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-[12rem]">schedule</span>
+</div>
+</div>
+</div>
+<!-- Provenance Timeline Section -->
+<section class="mt-16">
+<h4 class="font-headline text-2xl text-white mb-8 border-b border-outline-variant/10 pb-4">Provenance Activity</h4>
+<div class="space-y-0">
+<div class="flex gap-8 group">
+<div class="flex flex-col items-center">
+<div class="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20"></div>
+<div class="w-px h-16 bg-outline-variant/20"></div>
+</div>
+<div class="pb-8">
+<p class="text-[10px] text-primary uppercase font-bold tracking-[0.2em] mb-1">Dec 14, 2023</p>
+<p class="text-white text-base">Acquisition of Patek Philippe Nautilus Ref. 5711</p>
+<p class="text-outline text-xs mt-1">Authenticated by Geneva Archives</p>
+</div>
+</div>
+<div class="flex gap-8 group">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-outline-variant group-hover:bg-primary transition-colors"></div>
+<div class="w-px h-16 bg-outline-variant/20"></div>
+</div>
+<div class="pb-8">
+<p class="text-[10px] text-outline uppercase font-bold tracking-[0.2em] mb-1">Nov 28, 2023</p>
+<p class="text-white text-base">Annual Service Completed: '62 Stratocaster</p>
+<p class="text-outline text-xs mt-1">Luthier: J. Black Custom Shop</p>
+</div>
+</div>
+<div class="flex gap-8 group">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-outline-variant group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="">
+<p class="text-[10px] text-outline uppercase font-bold tracking-[0.2em] mb-1">Oct 05, 2023</p>
+<p class="text-white text-base">Market Revaluation: Gibson Custom Shop Collection</p>
+<p class="text-outline text-xs mt-1">Aggregate increase of $24,500 based on Sotheby's data</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Contextual FAB (Suppressed based on rules, but included if "Home" context allows) -->
+<!-- Rule says suppress on Details/Settings. Dashboard is "Home" context. -->
+<button class="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-on-primary shadow-2xl flex items-center justify-center z-50">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+</body></html>
