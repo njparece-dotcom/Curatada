@@ -11,6 +11,8 @@ interface ModalActionsProps {
   submitLabel: string;
   /** Saving label shown while submitting but after upload finishes. Defaults to "Saving...". */
   savingLabel?: string;
+  /** Uploading label shown during the file upload phase. Defaults to "Uploading...". */
+  uploadingLabel?: string;
   /** Icon shown next to the submit label when idle. Defaults to a plus glyph. */
   submitIcon?: React.ReactNode;
 }
@@ -18,6 +20,14 @@ interface ModalActionsProps {
 const DefaultPlusIcon = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
+);
+
+// Convenience icon for "Save" actions on Edit modals — caller imports and
+// passes via `submitIcon`.
+export const SaveCheckIcon = (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
   </svg>
 );
 
@@ -33,6 +43,7 @@ export default function ModalActions({
   uploading = false,
   submitLabel,
   savingLabel = "Saving...",
+  uploadingLabel = "Uploading...",
   submitIcon = DefaultPlusIcon,
 }: ModalActionsProps) {
   return (
@@ -52,7 +63,7 @@ export default function ModalActions({
         {submitting ? (
           <>
             {Spinner}
-            {uploading ? "Uploading..." : savingLabel}
+            {uploading ? uploadingLabel : savingLabel}
           </>
         ) : (
           <>

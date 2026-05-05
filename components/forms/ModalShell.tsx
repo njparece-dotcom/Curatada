@@ -11,13 +11,22 @@ interface ModalShellProps {
   subtitle?: string;
   onClose: () => void;
   children: ReactNode;
+  /**
+   * Stacked above another modal (e.g. an Edit modal opened from a Detail
+   * modal). Bumps z-index and darkens the backdrop slightly so the layered
+   * stack reads correctly.
+   */
+  nested?: boolean;
 }
 
-export default function ModalShell({ title, subtitle, onClose, children }: ModalShellProps) {
+export default function ModalShell({ title, subtitle, onClose, children, nested = false }: ModalShellProps) {
   return (
     <div
-      className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      className={`modal-backdrop fixed inset-0 ${nested ? "z-[60]" : "z-50"} flex items-center justify-center p-4`}
+      style={{
+        backgroundColor: nested ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(4px)",
+      }}
     >
       <div
         className="modal-content bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
