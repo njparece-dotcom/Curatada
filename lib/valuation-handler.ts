@@ -65,13 +65,17 @@ async function callWithRetry(prompt: string, maxRetries = 3): Promise<AnthropicR
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response = await (client.messages.create as any)({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4000,
+        // Haiku gives the same answer quality on this task as Sonnet at ~1/5
+        // the per-token cost. Two web_search invocations are plenty: STEP 1
+        // (sold) and an optional STEP 2 (active for-sale). max_tokens covers
+        // 3-5 comparables + a 1-2 sentence analysis with headroom.
+        model: "claude-haiku-4-5",
+        max_tokens: 1500,
         tools: [
           {
             type: "web_search_20250305",
             name: "web_search",
-            max_uses: 4,
+            max_uses: 2,
           },
         ],
         messages: [{ role: "user", content: prompt }],

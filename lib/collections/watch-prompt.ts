@@ -41,8 +41,8 @@ After researching, respond with ONLY valid JSON (no markdown, no explanation) in
       "condition": "<condition if listed>"
     }
   ],
-  "analysis": "<2-3 sentences explaining the valuation, specifically mentioning whether it was based on sold listings, for-sale listings, or a mix, and how condition was factored in>"
+  "analysis": "<1-2 sentences explaining the valuation, specifically mentioning whether it was based on sold listings, for-sale listings, or a mix, and how condition was factored in>"
 }
 
-Include 3-8 comparable listings total (mix of sold and for-sale is fine).`;
+Include 3-5 comparable listings total (mix of sold and for-sale is fine).`;
 }

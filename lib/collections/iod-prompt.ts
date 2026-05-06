@@ -43,8 +43,8 @@ After researching, respond with ONLY valid JSON (no markdown, no explanation) in
       "condition": "<condition if listed>"
     }
   ],
-  "analysis": "<2-3 sentences explaining the valuation, mentioning auction records, how condition and provenance were factored in>"
+  "analysis": "<1-2 sentences explaining the valuation, mentioning auction records, how condition and provenance were factored in>"
 }
 
-Include 3-8 comparable listings total.`;
+Include 3-5 comparable listings total.`;
 }
