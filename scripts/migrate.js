@@ -4,7 +4,15 @@ const { Pool } = require("pg");
 const fs = require("fs");
 const path = require("path");
 
-require("dotenv").config({ path: path.join(__dirname, "../.env.local") });
+// dotenv is only needed for local dev (env vars in .env.local). On hosted
+// deploys env vars come from the platform, and dotenv may not be present in
+// the production bundle (Next's standalone output only ships what routes
+// import).
+try {
+  require("dotenv").config({ path: path.join(__dirname, "../.env.local") });
+} catch {
+  // not installed — fine in production
+}
 
 async function migrate() {
   const connectionString = process.env.DATABASE_URL;

@@ -32,6 +32,13 @@ RUN mkdir -p ./public/uploads && chown nextjs:nodejs ./public/uploads
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy the migration script + sql so a deploy can run
+# `node scripts/migrate.js` against the production DATABASE_URL on boot.
+# Next's standalone output doesn't trace these (they're not imported by
+# routes), so we have to copy them explicitly.
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/db ./db
+
 USER nextjs
 
 EXPOSE 3000
