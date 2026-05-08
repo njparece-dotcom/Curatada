@@ -19,8 +19,15 @@ function getPool(): Pool {
     throw new Error("DATABASE_URL environment variable is not set");
   }
 
+  // Hosted Postgres (Railway, Heroku, Render, RDS, ...) typically requires
+  // TLS. Local dev against a docker-compose Postgres does not. Detect by
+  // NODE_ENV; rejectUnauthorized:false matches what hosted vendors expect
+  // (their certs aren't in Node's trust store).
+  const ssl = process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined;
+
   const pool = new Pool({
     connectionString,
+    ssl,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
