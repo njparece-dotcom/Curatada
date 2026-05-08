@@ -21,7 +21,21 @@ async function migrate() {
     process.exit(1);
   }
 
-  const pool = new Pool({ connectionString });
+  // Log the host:port:database without leaking the password — handy on hosted
+  // deploys where you can't easily eyeball the var.
+  try {
+    const u = new URL(connectionString);
+    console.log(`Target: ${u.hostname}:${u.port || "5432"} db=${u.pathname.slice(1)} user=${u.username}`);
+  } catch {
+    console.log("Target: <unparseable DATABASE_URL>");
+  }
+
+  // Hosted Postgres (Railway, Heroku, Render, RDS, ...) typically requires
+  // TLS. Local dev against a docker-compose Postgres does not. Detect by
+  // NODE_ENV; the rejectUnauthorized:false matches what every hosted vendor
+  // expects (their certs aren't in Node's trust store).
+  const ssl = process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined;
+  const pool = new Pool({ connectionString, ssl });
 
   try {
     console.log("Connecting to database...");
@@ -69,7 +83,21 @@ async function migrate() {
     client.release();
     console.log(`\n${ran} new migration(s) applied; ${files.length - ran} already current.`);
   } catch (err) {
-    console.error("Migration failed:", err.message);
+    // Dump as much as we can — pg errors carry useful fields beyond .message
+    // (code, severity, detail, hint, position) and on connection failures the
+    // .message itself can be empty.
+    console.error("Migration failed.");
+    console.error("  message:  ", err && err.message ? err.message : "(empty)");
+    if (err && err.code) console.error("  code:     ", err.code);
+    if (err && err.severity) console.error("  severity: ", err.severity);
+    if (err && err.detail) console.error("  detail:   ", err.detail);
+    if (err && err.hint) console.error("  hint:     ", err.hint);
+    if (err && err.position) console.error("  position: ", err.position);
+    if (err && err.where) console.error("  where:    ", err.where);
+    if (err && err.stack) console.error(err.stack);
+    if (!err || (typeof err === "object" && Object.keys(err).length === 0)) {
+      console.error("  raw:      ", err);
+    }
     process.exit(1);
   } finally {
     await pool.end();
