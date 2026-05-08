@@ -5,33 +5,40 @@ declare global {
   var _pgPool: Pool | undefined;
 }
 
-function createPool(): Pool {
+// Lazy-init the pg Pool so it only constructs on first query, not at module
+// load. This matters for Next.js production builds: `next build` collects page
+// data by importing every route module, which transitively imports this file.
+// During the Railway build phase DATABASE_URL is unset, so eagerly calling
+// `new Pool({ connectionString: undefined })` -> our throw -> build fails.
+// At request time DATABASE_URL is always set, so deferring is safe.
+function getPool(): Pool {
+  if (globalThis._pgPool) return globalThis._pgPool;
+
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is not set");
   }
-  return new Pool({
+
+  const pool = new Pool({
     connectionString,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
   });
+
+  // Reuse the pool across Next.js dev hot-reloads.
+  if (process.env.NODE_ENV !== "production") {
+    globalThis._pgPool = pool;
+  }
+
+  return pool;
 }
-
-// Reuse pool across hot-reloads in development
-const pool = globalThis._pgPool ?? createPool();
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis._pgPool = pool;
-}
-
-export default pool;
 
 export async function query<T = Record<string, unknown>>(
   text: string,
   params?: unknown[]
 ): Promise<T[]> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     const result = await client.query(text, params);
     return result.rows as T[];
