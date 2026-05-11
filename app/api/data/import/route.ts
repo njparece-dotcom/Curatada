@@ -190,38 +190,60 @@ async function insertIoD(r: Record<string, unknown>, userId: string): Promise<st
 //
 // Embedded under each item as `valuations: [...]` by the exporter. Same
 // schema across all four modules; only the table + FK column name differs.
+//
+// Idempotent: ON CONFLICT (id) DO NOTHING — running the same import twice
+// inserts each valuation at most once, so a partial first run can be
+// resumed cleanly by re-importing the same file.
+//
+// Ownership-enforced: INSERT...SELECT...WHERE EXISTS verifies the parent
+// item belongs to the current user. Without this, a JSON with a forged
+// `id` referencing another user's item could attach valuations to it.
 
 async function insertValuations(
-  table: string,
+  itemsTable: string,
   fkColumn: string,
+  valuationsTable: string,
   itemId: string,
+  userId: string,
   rows: unknown,
-): Promise<number> {
-  if (!Array.isArray(rows)) return 0;
+): Promise<{ inserted: number; errors: ValidationError[] }> {
+  if (!Array.isArray(rows)) return { inserted: 0, errors: [] };
   let inserted = 0;
-  for (const v of rows) {
+  const errors: ValidationError[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const v = rows[i];
     if (!v || typeof v !== "object") continue;
     const r = v as Record<string, unknown>;
     const price = toNumber(r.price);
     if (!r.valuation_type || price == null) continue;
     if (r.valuation_type !== "ai" && r.valuation_type !== "user") continue;
-    await query(
-      `INSERT INTO ${table} (id, ${fkColumn}, valuation_type, price, notes, comparable_sales, created_at)
-       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6::jsonb, COALESCE($7::timestamptz, NOW()))
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        r.id || null,
-        itemId,
-        r.valuation_type,
-        price,
-        r.notes || null,
-        r.comparable_sales ? JSON.stringify(r.comparable_sales) : null,
-        r.created_at || null,
-      ],
-    );
-    inserted++;
+    try {
+      const result = await query<{ id: string }>(
+        `INSERT INTO ${valuationsTable} (id, ${fkColumn}, valuation_type, price, notes, comparable_sales, created_at)
+         SELECT COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6::jsonb, COALESCE($7::timestamptz, NOW())
+         WHERE EXISTS (SELECT 1 FROM ${itemsTable} WHERE id = $2 AND user_id = $8)
+         ON CONFLICT (id) DO NOTHING
+         RETURNING id`,
+        [
+          r.id || null,
+          itemId,
+          r.valuation_type,
+          price,
+          r.notes || null,
+          r.comparable_sales ? JSON.stringify(r.comparable_sales) : null,
+          r.created_at || null,
+          userId,
+        ],
+      );
+      if (result.length > 0) inserted++;
+      // result.length === 0 covers two ownership-safe cases: a duplicate
+      // (ON CONFLICT) or the parent item doesn't belong to this user. We
+      // don't surface either as an error.
+    } catch (e) {
+      errors.push({ row: i + 1, field: "valuation", message: String(e) });
+    }
   }
-  return inserted;
+  return { inserted, errors };
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -230,15 +252,16 @@ interface CollectionRun {
   key: string;
   validator: (r: Record<string, unknown>, i: number) => ValidationError[];
   inserter: (r: Record<string, unknown>, uid: string) => Promise<string | null>;
+  itemsTable: string;
   valuationsTable: string;
   valuationsFk: string;
 }
 
 const RUNS: CollectionRun[] = [
-  { key: "guitars",      validator: validateGuitar, inserter: insertGuitar, valuationsTable: "guitar_valuations", valuationsFk: "guitar_item_id" },
-  { key: "watches",      validator: validateWatch,  inserter: insertWatch,  valuationsTable: "watch_valuations",  valuationsFk: "watch_item_id"  },
-  { key: "automobiles",  validator: validateAuto,   inserter: insertAuto,   valuationsTable: "auto_valuations",   valuationsFk: "auto_id"        },
-  { key: "collectibles", validator: validateIoD,    inserter: insertIoD,    valuationsTable: "iod_valuations",    valuationsFk: "iod_id"         },
+  { key: "guitars",      validator: validateGuitar, inserter: insertGuitar, itemsTable: "guitar_items",          valuationsTable: "guitar_valuations", valuationsFk: "guitar_item_id" },
+  { key: "watches",      validator: validateWatch,  inserter: insertWatch,  itemsTable: "watch_items",           valuationsTable: "watch_valuations",  valuationsFk: "watch_item_id"  },
+  { key: "automobiles",  validator: validateAuto,   inserter: insertAuto,   itemsTable: "automobiles",           valuationsTable: "auto_valuations",   valuationsFk: "auto_id"        },
+  { key: "collectibles", validator: validateIoD,    inserter: insertIoD,    itemsTable: "items_of_distinction",  valuationsTable: "iod_valuations",    valuationsFk: "iod_id"         },
 ];
 
 export async function POST(req: NextRequest) {
@@ -259,39 +282,65 @@ export async function POST(req: NextRequest) {
     }
 
     const cols = body.collections as Record<string, unknown[]>;
-    const results: Record<string, { imported: number; skipped: number; valuations_imported: number; errors: ValidationError[] }> = {};
+    const results: Record<string, {
+      imported: number;
+      skipped_existing: number;
+      skipped_invalid: number;
+      valuations_imported: number;
+      errors: ValidationError[];
+    }> = {};
 
     for (const r of RUNS) {
       if (!cols[r.key]) continue;
       if (!Array.isArray(cols[r.key])) {
-        results[r.key] = { imported: 0, skipped: 0, valuations_imported: 0, errors: [{ row: 0, field: r.key, message: "Must be an array" }] };
+        results[r.key] = { imported: 0, skipped_existing: 0, skipped_invalid: 0, valuations_imported: 0, errors: [{ row: 0, field: r.key, message: "Must be an array" }] };
         continue;
       }
-      let imported = 0, skipped = 0, valuationsImported = 0;
+      let imported = 0, skippedExisting = 0, skippedInvalid = 0, valuationsImported = 0;
       const errors: ValidationError[] = [];
       for (let i = 0; i < cols[r.key].length; i++) {
         const row = cols[r.key][i] as Record<string, unknown>;
         const rowErrs = r.validator(row, i + 1);
         if (rowErrs.length > 0) {
           errors.push(...rowErrs);
-          skipped++;
+          skippedInvalid++;
           continue;
         }
         try {
           const newId = await r.inserter(row, userId);
+          let itemId: string | null = newId;
           if (newId) {
             imported++;
-            valuationsImported += await insertValuations(r.valuationsTable, r.valuationsFk, newId, row.valuations);
+          } else if (typeof row.id === "string") {
+            // ON CONFLICT — the item already existed (possibly from a prior
+            // partial run). Use the carried-over id so we can still attempt
+            // to insert any valuations that didn't make it last time.
+            // Ownership is enforced inside insertValuations.
+            itemId = row.id;
+            skippedExisting++;
           } else {
-            // ON CONFLICT — item already existed; don't touch valuations either
-            skipped++;
+            skippedExisting++;
+          }
+          if (itemId) {
+            const vRes = await insertValuations(
+              r.itemsTable,
+              r.valuationsFk,
+              r.valuationsTable,
+              itemId,
+              userId,
+              row.valuations,
+            );
+            valuationsImported += vRes.inserted;
+            for (const e of vRes.errors) {
+              errors.push({ row: i + 1, field: `valuation[${e.row}].${e.field}`, message: e.message });
+            }
           }
         } catch (e) {
           errors.push({ row: i + 1, field: "db", message: String(e) });
-          skipped++;
+          skippedInvalid++;
         }
       }
-      results[r.key] = { imported, skipped, valuations_imported: valuationsImported, errors };
+      results[r.key] = { imported, skipped_existing: skippedExisting, skipped_invalid: skippedInvalid, valuations_imported: valuationsImported, errors };
     }
 
     return NextResponse.json({ results });
