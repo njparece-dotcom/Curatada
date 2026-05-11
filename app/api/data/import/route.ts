@@ -16,11 +16,14 @@ function normalizeSlug(v: unknown): string {
   if (!v || typeof v !== "string") return "";
   return v.trim().toLowerCase().replace(/\s+/g, "-");
 }
-// Normalize condition: title-case first word
+// Normalize condition by matching the input case-insensitively against the
+// canonical list. The old approach (Upper + lowercase rest) corrupted
+// multi-word values: "Very Good" -> "Very good" -> rejected by both the
+// validator and the DB CHECK constraint.
 function normalizeCondition(v: unknown): string | null {
   if (!v || typeof v !== "string") return null;
-  const t = v.trim();
-  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  const trimmed = v.trim().toLowerCase();
+  return CONDITIONS.find((c) => c.toLowerCase() === trimmed) ?? null;
 }
 
 // NUMERIC columns come back from pg as strings (JS Number can't represent
