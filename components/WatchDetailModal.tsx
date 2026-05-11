@@ -30,6 +30,7 @@ export default function WatchDetailModal({
   onValuationSaved,
   onItemUpdated,
 }: WatchDetailModalProps) {
+  const { hideValues } = useHideValues();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
@@ -157,6 +158,7 @@ export default function WatchDetailModal({
 
   const formatPrice = (price: number | null) => {
     if (price == null) return null;
+    if (hideValues) return "$•••";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
