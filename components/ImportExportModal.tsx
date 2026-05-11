@@ -4,7 +4,13 @@ import { useState, useRef, useCallback, useEffect } from "react";
 
 interface ValidationError { row: number; field: string; message: string; }
 interface ValidationResult { count: number; errors: ValidationError[]; }
-interface ImportResult { imported: number; skipped: number; errors: ValidationError[]; }
+interface ImportResult {
+  imported: number;
+  skipped_existing: number;
+  skipped_invalid: number;
+  valuations_imported: number;
+  errors: ValidationError[];
+}
 
 type Tab = "export" | "import";
 type ImportStep = "select" | "preview" | "done";
@@ -421,7 +427,15 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
                             </span>
                             <div className="flex items-center gap-3 text-xs">
                               <span className="text-green-400">{r.imported} imported</span>
-                              {r.skipped > 0 && <span className="text-text-dim">{r.skipped} skipped</span>}
+                              {r.valuations_imported > 0 && (
+                                <span className="text-accent">+{r.valuations_imported} valuation{r.valuations_imported === 1 ? "" : "s"}</span>
+                              )}
+                              {r.skipped_existing > 0 && (
+                                <span className="text-text-dim">{r.skipped_existing} already present</span>
+                              )}
+                              {r.skipped_invalid > 0 && (
+                                <span className="text-yellow-400">{r.skipped_invalid} invalid</span>
+                              )}
                             </div>
                           </div>
                           {dbErrors.length > 0 && (
