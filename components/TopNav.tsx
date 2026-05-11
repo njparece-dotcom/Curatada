@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useUserModules } from "@/lib/UserModulesContext";
+import { useHideValues } from "@/lib/HideValuesContext";
 import ManageCollectionsModal from "@/components/ManageCollectionsModal";
 
 export default function TopNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { isEnabled } = useUserModules();
+  const { hideValues, toggle: toggleHideValues } = useHideValues();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -110,7 +112,7 @@ export default function TopNav() {
         </div>
       </div>
 
-      {/* Right — Search + User menu */}
+      {/* Right — Search + Hide-values toggle + User menu */}
       <div className="flex items-center gap-4">
         <div className="hidden lg:flex items-center gap-2 bg-surface-2 border border-border px-3 py-1.5 rounded-lg">
           <svg className="w-3.5 h-3.5 text-text-dim flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -123,6 +125,27 @@ export default function TopNav() {
             className="bg-transparent border-none outline-none text-sm text-text placeholder-text-dim w-40 font-label"
           />
         </div>
+
+        {/* Hide-values toggle. Eye icon when values are visible (click to
+            hide); eye-slash when hidden (click to show). Per-device only —
+            see lib/HideValuesContext.tsx. */}
+        <button
+          onClick={toggleHideValues}
+          className="w-9 h-9 rounded-lg border border-border bg-surface-2 hover:bg-surface-3 text-text-dim hover:text-text transition-colors flex items-center justify-center flex-shrink-0"
+          aria-label={hideValues ? "Show dollar values" : "Hide dollar values"}
+          title={hideValues ? "Show dollar values" : "Hide dollar values"}
+        >
+          {hideValues ? (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          )}
+        </button>
 
         {/* User avatar/menu */}
         {session?.user && (

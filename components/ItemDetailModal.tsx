@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { GuitarItem, GuitarImage, GuitarValuation, ComparableSale, CONDITION_COLORS, CATEGORY_LABELS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 import EditItemModal from "@/components/EditItemModal";
 
 interface ItemDetailModalProps {

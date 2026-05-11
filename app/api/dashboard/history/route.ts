@@ -68,6 +68,10 @@ export async function GET(request: Request) {
       watch_cost: number;
       auto_cost: number;
       iod_cost: number;
+      guitar_count: number;
+      watch_count: number;
+      auto_count: number;
+      iod_count: number;
     }>(`
       WITH date_series AS (
         SELECT generate_series(
@@ -165,6 +169,40 @@ export async function GET(request: Request) {
         FROM date_series ds
         LEFT JOIN items_of_distinction i ON i.created_at::date <= ds.snapshot_date AND i.user_id = $1
         GROUP BY ds.snapshot_date
+      ),
+
+      -- Per-module cumulative item count per snapshot (user-scoped). Counts
+      -- items whose created_at falls on or before the snapshot date. Items
+      -- are hard-deleted so this is monotonically non-decreasing for items
+      -- that still exist; deletions just lower the present value across
+      -- all past snapshots — acceptable for a "collection growth" view.
+      guitar_counts AS (
+        SELECT ds.snapshot_date,
+          COUNT(gi.id)::int AS guitar_count
+        FROM date_series ds
+        LEFT JOIN guitar_items gi ON gi.created_at::date <= ds.snapshot_date AND gi.user_id = $1
+        GROUP BY ds.snapshot_date
+      ),
+      watch_counts AS (
+        SELECT ds.snapshot_date,
+          COUNT(wi.id)::int AS watch_count
+        FROM date_series ds
+        LEFT JOIN watch_items wi ON wi.created_at::date <= ds.snapshot_date AND wi.user_id = $1
+        GROUP BY ds.snapshot_date
+      ),
+      auto_counts AS (
+        SELECT ds.snapshot_date,
+          COUNT(a.id)::int AS auto_count
+        FROM date_series ds
+        LEFT JOIN automobiles a ON a.created_at::date <= ds.snapshot_date AND a.user_id = $1
+        GROUP BY ds.snapshot_date
+      ),
+      iod_counts AS (
+        SELECT ds.snapshot_date,
+          COUNT(i.id)::int AS iod_count
+        FROM date_series ds
+        LEFT JOIN items_of_distinction i ON i.created_at::date <= ds.snapshot_date AND i.user_id = $1
+        GROUP BY ds.snapshot_date
       )
 
       SELECT
@@ -188,7 +226,11 @@ export async function GET(request: Request) {
         COALESCE(gc.guitar_cost, 0)::float          AS guitar_cost,
         COALESCE(wc.watch_cost, 0)::float           AS watch_cost,
         COALESCE(ac.auto_cost, 0)::float            AS auto_cost,
-        COALESCE(ic.iod_cost, 0)::float             AS iod_cost
+        COALESCE(ic.iod_cost, 0)::float             AS iod_cost,
+        COALESCE(gn.guitar_count, 0)::int           AS guitar_count,
+        COALESCE(wn.watch_count, 0)::int            AS watch_count,
+        COALESCE(an.auto_count, 0)::int             AS auto_count,
+        COALESCE(inn.iod_count, 0)::int             AS iod_count
       FROM date_series ds
       LEFT JOIN guitar_totals gt ON gt.snapshot_date = ds.snapshot_date
       LEFT JOIN watch_totals  wt ON wt.snapshot_date = ds.snapshot_date
@@ -198,6 +240,10 @@ export async function GET(request: Request) {
       LEFT JOIN watch_costs   wc ON wc.snapshot_date = ds.snapshot_date
       LEFT JOIN auto_costs    ac ON ac.snapshot_date = ds.snapshot_date
       LEFT JOIN iod_costs     ic ON ic.snapshot_date = ds.snapshot_date
+      LEFT JOIN guitar_counts gn ON gn.snapshot_date = ds.snapshot_date
+      LEFT JOIN watch_counts  wn ON wn.snapshot_date = ds.snapshot_date
+      LEFT JOIN auto_counts   an ON an.snapshot_date = ds.snapshot_date
+      LEFT JOIN iod_counts    inn ON inn.snapshot_date = ds.snapshot_date
       ORDER BY ds.snapshot_date
     `, [userId]);
 

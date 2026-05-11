@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IoDItem, CONDITION_COLORS, IOD_CATEGORY_LABELS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface IoDCardProps {
   item: IoDItem;
@@ -10,6 +11,7 @@ interface IoDCardProps {
 }
 
 export default function IoDCard({ item, onClick, onDelete }: IoDCardProps) {
+  const { hideValues } = useHideValues();
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
 

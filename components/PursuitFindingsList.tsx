@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 export interface PursuitFinding {
   id: string;
@@ -37,7 +38,7 @@ function sourceBadge(source: string) {
   return SOURCE_COLORS[source] ?? defaultColor;
 }
 
-function fmt(v: number) {
+function fmtRaw(v: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD", maximumFractionDigits: 0,
   }).format(v);
@@ -67,6 +68,8 @@ interface Props {
 }
 
 export default function PursuitFindingsList({ findings, onSearch, searching, onClear, clearing }: Props) {
+  const { hideValues } = useHideValues();
+  const fmt = (v: number) => hideValues ? "$•••" : fmtRaw(v);
   const [expanded, setExpanded] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 

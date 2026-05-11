@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GuitarItem, ComparableSale } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface ValuationPromptModalProps {
   item: GuitarItem;
@@ -49,8 +50,9 @@ export default function ValuationPromptModal({
     }
   };
 
+  const { hideValues } = useHideValues();
   const formatPrice = (n: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
+    hideValues ? "$•••" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
 
   const itemName = [item.year, item.brand, item.model].filter(Boolean).join(" ");
 

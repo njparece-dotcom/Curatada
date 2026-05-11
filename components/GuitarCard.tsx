@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GuitarItem, CONDITION_COLORS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface GuitarCardProps {
   item: GuitarItem;
@@ -10,6 +11,7 @@ interface GuitarCardProps {
 }
 
 export default function GuitarCard({ item, onClick, onDelete }: GuitarCardProps) {
+  const { hideValues } = useHideValues();
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
 

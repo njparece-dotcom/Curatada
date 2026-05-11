@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { WatchItem, CONDITION_COLORS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface WatchCardProps {
   item: WatchItem;
@@ -10,6 +11,7 @@ interface WatchCardProps {
 }
 
 export default function WatchCard({ item, onClick, onDelete }: WatchCardProps) {
+  const { hideValues } = useHideValues();
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
 

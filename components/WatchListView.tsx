@@ -1,6 +1,7 @@
 "use client";
 
 import { WatchItem, CONDITION_COLORS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface WatchListViewProps {
   items: WatchItem[];
@@ -8,7 +9,7 @@ interface WatchListViewProps {
   onDelete: (id: string) => void;
 }
 
-const fmt = (price: number | null | undefined) => {
+const fmtRaw = (price: number | null | undefined) => {
   if (price == null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -19,6 +20,8 @@ const fmt = (price: number | null | undefined) => {
 };
 
 export default function WatchListView({ items, onItemClick }: WatchListViewProps) {
+  const { hideValues } = useHideValues();
+  const fmt = (price: number | null | undefined) => hideValues ? "$•••" : fmtRaw(price);
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-sm border-collapse min-w-[1100px]">

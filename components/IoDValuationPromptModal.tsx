@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IoDItem, ComparableSale } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface IoDValuationPromptModalProps {
   item: IoDItem;
@@ -49,8 +50,9 @@ export default function IoDValuationPromptModal({
     }
   };
 
+  const { hideValues } = useHideValues();
   const formatPrice = (n: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
+    hideValues ? "$•••" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
 
   const itemName = [item.brand, item.item_type, item.short_description].filter(Boolean).join(" · ");
 

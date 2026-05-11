@@ -1,11 +1,13 @@
 "use client";
 
+import { useHideValues } from "@/lib/HideValuesContext";
+
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { WatchItem, WatchCategory, WATCH_CATEGORY_LABELS, WATCH_CATEGORIES, CONDITION_COLORS } from "@/lib/types";
 import WatchDetailModal from "@/components/WatchDetailModal";
 
-const fmt = (price: number | null | undefined) => {
+const fmtRaw = (price: number | null | undefined) => {
   if (price == null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -24,6 +26,8 @@ const COLUMNS = [
 const PAGE_SIZE = 15;
 
 export default function WatchesPage() {
+  const { hideValues } = useHideValues();
+  const fmt = (n: number | null | undefined) => hideValues ? "$•••" : fmtRaw(n);
   const [allItems, setAllItems] = useState<WatchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<WatchItem | null>(null);

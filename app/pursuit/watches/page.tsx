@@ -7,12 +7,13 @@ import {
   PURSUIT_STATUS_STYLES,
   PursuitStatus,
 } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 import AddWatchPursuitModal from "@/components/AddWatchPursuitModal";
 import EditWatchPursuitModal from "@/components/EditWatchPursuitModal";
 import PursuitFindingsList, { PursuitFinding } from "@/components/PursuitFindingsList";
 import PursuitCheckinModal, { CheckinPursuit } from "@/components/PursuitCheckinModal";
 
-const formatCurrency = (value: number | null | undefined) => {
+const formatCurrencyRaw = (value: number | null | undefined) => {
   if (value == null) return null;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -21,13 +22,13 @@ const formatCurrency = (value: number | null | undefined) => {
   }).format(Number(value));
 };
 
-const formatPriceRange = (min: number | null, max: number | null): string | null => {
+const formatPriceRangeRaw = (min: number | null, max: number | null): string | null => {
   if (min == null && max == null) return null;
   if (min != null && max != null) {
-    return `${formatCurrency(min)} – ${formatCurrency(max)}`;
+    return `${formatCurrencyRaw(min)} – ${formatCurrencyRaw(max)}`;
   }
-  if (min != null) return `From ${formatCurrency(min)}`;
-  return `Up to ${formatCurrency(max)}`;
+  if (min != null) return `From ${formatCurrencyRaw(min)}`;
+  return `Up to ${formatCurrencyRaw(max)}`;
 };
 
 const getSourceLabel = (id: string, otherSource?: string | null) => {
@@ -52,6 +53,18 @@ function needsCheckin(p: WatchPursuit): boolean {
 }
 
 export default function WatchPursuitPage() {
+  const { hideValues } = useHideValues();
+  const formatCurrency = (v: number | null | undefined): string | null => {
+    if (v == null) return null;
+    if (hideValues) return "$•••";
+    return formatCurrencyRaw(v);
+  };
+  const formatPriceRange = (min: number | null, max: number | null): string | null => {
+    if (min == null && max == null) return null;
+    if (min != null && max != null) return `${formatCurrency(min)} – ${formatCurrency(max)}`;
+    if (min != null) return `From ${formatCurrency(min)}`;
+    return `Up to ${formatCurrency(max)}`;
+  };
   const [pursuits, setPursuits]       = useState<WatchPursuit[]>([]);
   const [findings, setFindings]       = useState<Record<string, PursuitFinding[]>>({});
   const [loading, setLoading]         = useState(true);
