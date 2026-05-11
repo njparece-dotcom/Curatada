@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { authOptions } from "@/lib/auth";
+import { r2IsConfigured, r2PutObject } from "@/lib/storage/r2";
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -27,10 +28,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
     }
 
+    // R2 if configured (production / staging), local disk otherwise (dev).
+    // The DB path format stays `/uploads/<filename>.ext` in both modes — the
+    // serving route resolves it: redirect to a presigned R2 URL, or stream
+    // from disk, depending on env.
+    const useR2 = r2IsConfigured();
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
-
-    // Ensure uploads directory exists
-    await fs.mkdir(uploadsDir, { recursive: true });
+    if (!useR2) {
+      await fs.mkdir(uploadsDir, { recursive: true });
+    }
 
     const uploadedFiles: {
       filename: string;
@@ -57,10 +63,13 @@ export async function POST(request: NextRequest) {
 
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const filename = `${uuidv4()}.${ext}`;
-      const filePath = path.join(uploadsDir, filename);
-
       const buffer = Buffer.from(await file.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
+
+      if (useR2) {
+        await r2PutObject(filename, buffer, file.type);
+      } else {
+        await fs.writeFile(path.join(uploadsDir, filename), buffer);
+      }
 
       uploadedFiles.push({
         filename,
@@ -80,4 +89,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

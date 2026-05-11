@@ -9,6 +9,7 @@ import path from "path";
 import fs from "fs/promises";
 import { authOptions } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
+import { r2IsConfigured, r2DeleteObjects } from "@/lib/storage/r2";
 import type { CollectionConfig, FieldSpec } from "@/lib/collections/types";
 
 const VALID_CONDITIONS = ["Mint", "Excellent", "Very Good", "Good", "Fair", "Poor"] as const;
@@ -133,7 +134,20 @@ function validateBody(
 
 // ── Image side-effects ────────────────────────────────────────────────────────
 
+// Best-effort deletion of the underlying image objects. R2 in production,
+// local public/uploads in dev. Failures here are logged but never propagated
+// — the parent row is already gone (cascade), so we'd rather end up with an
+// orphan storage object than a 500 on a successful PATCH/DELETE.
 async function deleteImageFiles(images: { filename: string }[]): Promise<void> {
+  if (images.length === 0) return;
+  if (r2IsConfigured()) {
+    try {
+      await r2DeleteObjects(images.map((img) => img.filename));
+    } catch (err) {
+      console.warn("[storage] R2 delete failed:", err);
+    }
+    return;
+  }
   const uploadsDir = path.join(process.cwd(), "public", "uploads");
   for (const image of images) {
     try {

@@ -43,6 +43,9 @@ Required env vars on the app service (in addition to platform-injected `PORT`):
 | `NEXTAUTH_URL` | **Public** Railway URL, e.g. `https://curatada-production.up.railway.app` — NextAuth callbacks 500 silently if this is wrong |
 | `ANTHROPIC_API_KEY` | For valuations and pursuit search |
 | `CRON_SECRET` | Optional; only needed if running a sibling cron service to hit `/api/pursuits/run-search` |
+| `MGMT_API_TOKEN` | Bearer token for the cross-app dashboard's `/api/mgmt/v1/*` calls. Without it, the mgmt API returns 503. |
+| `MGMT_REQUIRE_INTERNAL` | `1` to reject mgmt calls coming through the public edge (any `x-forwarded-for`). Pairs with `curatada.railway.internal`. |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | Cloudflare R2 for image storage. All four required in production; if any is missing the app falls back to local disk. |
 | `NODE_ENV` | Should be `production` (Railway sets this automatically; verify) |
 
 Railway's "Networking → Public Networking → Target Port" must be **3000** (the
@@ -96,9 +99,13 @@ objects.
   globalThis unconditionally** — see Gotchas. SSL is auto-enabled when
   `NODE_ENV === "production"`.
 - Image upload: client POSTs to `/api/upload` → gets `{path: "/uploads/<uuid>.ext"}`
-  → posts that path with the item create. Storage is local disk on whichever
-  host is running, served by `/api/uploads/[...path]` (rewritten from
-  `/uploads/*` in `next.config.mjs`).
+  → posts that path with the item create. Storage backend depends on env:
+  Cloudflare R2 when `R2_*` vars are set (production), local `public/uploads/`
+  on disk otherwise (dev). The DB path format is the same in both —
+  `/uploads/<filename>.ext` — and the serve route at `/api/uploads/[...path]`
+  resolves it: 302 redirect to a 1-hour presigned R2 URL, or stream from
+  disk. R2 client lives in `lib/storage/r2.ts` and is a singleton on
+  `globalThis`.
 - UI follows `Looks/DESIGN.md` ("Curated Sanctum" — dark, tonal layering, no
   1px borders for sectioning, gold/brass accents). Tailwind tokens in
   `tailwind.config.ts`.
@@ -140,11 +147,15 @@ objects.
   the same `CRON_SECRET`. On Railway the cron container from `docker-compose.yml`
   doesn't deploy automatically — set it up as a separate service if needed.
 
-- **Image storage is local disk.** Files live in `public/uploads/`, served
-  by `app/api/uploads/[...path]/route.ts`. On Railway the container disk is
-  ephemeral — uploads vanish on every redeploy. The export/import flow
-  deliberately skips image rows for this reason. Phase 4 (object storage —
-  S3 / R2 / Cloudflare Images) is the remediation but not yet done.
+- **Image storage backend is env-driven.** Cloudflare R2 (`lib/storage/r2.ts`)
+  in production when all four `R2_*` vars are set; local `public/uploads/` on
+  disk otherwise. The DB only stores `/uploads/<filename>.ext` — the serve
+  route resolves it. **Image rows from before Phase 4 still reference
+  `/uploads/<old-uuid>.ext` but the corresponding R2 object doesn't exist** —
+  those will 404 on R2. The Railway container disk also wiped them on each
+  pre-Phase-4 redeploy, so they were broken already. Re-upload as needed.
+  The export/import flow still skips image *rows* (it predates R2) — that's
+  the next thing to wire up now that files actually persist.
 
 - **`claimOrphanedData` in `lib/auth.ts`** assigns every orphan row to the
   first OAuth user that signs in. Disable before opening signups.
@@ -243,9 +254,13 @@ curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
   React 19 `useRef` typing all handled.
 - **Mgmt API** (`/api/mgmt/v1/*`) — done (PR #12); see the Management API
   section above.
-- **Phase 4** (object storage for uploads) — not started; pick a provider
-  (S3 / R2 / Cloudflare Images) before tackling. Until then, any image
-  uploaded on Railway vanishes on the next redeploy.
+- **Phase 4** (object storage for uploads) — done. Cloudflare R2 via
+  `lib/storage/r2.ts` (private bucket + presigned URLs on read).
+  `/api/upload` writes to R2 when configured; `/api/uploads/[...path]`
+  302-redirects to a 1-hour presigned URL. Local-disk fallback preserved
+  for dev. Image rows from before this still 404 (files never persisted
+  on the old Railway disk anyway); re-upload as needed. Follow-up:
+  add image rows back to the export/import roundtrip.
 - **CI gate for auto-merge** — not done. `gh pr merge --auto` is enabled
   on the repo but with no required status check it merges immediately.
   ~30 lines of GitHub Actions YAML (`tsc --noEmit` + `next build`) plus
