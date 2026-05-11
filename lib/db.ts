@@ -33,10 +33,13 @@ function getPool(): Pool {
     connectionTimeoutMillis: 2000,
   });
 
-  // Reuse the pool across Next.js dev hot-reloads.
-  if (process.env.NODE_ENV !== "production") {
-    globalThis._pgPool = pool;
-  }
+  // Cache the pool on globalThis so getPool() returns the same instance
+  // across all calls in the process — in dev this survives Next hot-reloads,
+  // and in production it prevents a per-query Pool() leak. Without this,
+  // every query allocates a new Pool that keeps idle connections alive for
+  // 30s, and a burst of queries (e.g. an import) blows past Postgres's
+  // max_connections with "sorry, too many clients already".
+  globalThis._pgPool = pool;
 
   return pool;
 }
