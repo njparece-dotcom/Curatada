@@ -256,10 +256,14 @@ export function makeListHandlers(c: CollectionConfig) {
   return { GET, POST };
 }
 
+// Next 15: dynamic-route params arrive as a Promise; handlers must await
+// before reading the fields.
+type ItemParams = Promise<{ id: string }>;
+
 export function makeItemHandlers(c: CollectionConfig) {
   async function GET(
     _request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: ItemParams }
   ) {
     try {
       const session = await getServerSession(authOptions);
@@ -267,11 +271,13 @@ export function makeItemHandlers(c: CollectionConfig) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
+      const { id } = await params;
+
       const item = await queryOne(
         `${listSelectSql(c, false)}
          WHERE ${c.alias}.id = $1 AND ${c.alias}.user_id = $2
          GROUP BY ${c.alias}.id`,
-        [params.id, session.user.id]
+        [id, session.user.id]
       );
       if (!item) {
         return NextResponse.json({ error: "Item not found" }, { status: 404 });
@@ -288,7 +294,7 @@ export function makeItemHandlers(c: CollectionConfig) {
 
   async function DELETE(
     _request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: ItemParams }
   ) {
     try {
       const session = await getServerSession(authOptions);
@@ -296,16 +302,18 @@ export function makeItemHandlers(c: CollectionConfig) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
+      const { id } = await params;
+
       // Read filenames before the cascade removes the rows so we can clean
       // them off disk after the parent delete commits.
       const images = await query<{ filename: string }>(
         `SELECT filename FROM ${c.imagesTable} WHERE ${c.imageFkColumn} = $1`,
-        [params.id]
+        [id]
       );
 
       const deleted = await queryOne(
         `DELETE FROM ${c.table} WHERE id = $1 AND user_id = $2 RETURNING *`,
-        [params.id, session.user.id]
+        [id, session.user.id]
       );
       if (!deleted) {
         return NextResponse.json({ error: "Item not found" }, { status: 404 });
@@ -324,13 +332,15 @@ export function makeItemHandlers(c: CollectionConfig) {
 
   async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: ItemParams }
   ) {
     try {
       const session = await getServerSession(authOptions);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+
+      const { id } = await params;
 
       const body = (await request.json()) as Record<string, unknown>;
       const validationError = validateBody(body, c, false);
@@ -353,7 +363,7 @@ export function makeItemHandlers(c: CollectionConfig) {
       }
       const idPlaceholder = nextPlaceholder;
       const userIdPlaceholder = nextPlaceholder + 1;
-      values.push(params.id, session.user.id);
+      values.push(id, session.user.id);
 
       const item = await queryOne(
         `UPDATE ${c.table} SET ${setClauses.join(", ")}
@@ -372,7 +382,7 @@ export function makeItemHandlers(c: CollectionConfig) {
           await query(
             `UPDATE ${c.imagesTable} SET sort_order = $1, is_primary = $2
              WHERE id = $3 AND ${c.imageFkColumn} = $4`,
-            [i, i === 0, imageOrder[i], params.id]
+            [i, i === 0, imageOrder[i], id]
           );
         }
       }
@@ -382,7 +392,7 @@ export function makeItemHandlers(c: CollectionConfig) {
       if (Array.isArray(imagesToDelete) && imagesToDelete.length > 0) {
         const deletedImgs = await query<{ filename: string }>(
           `DELETE FROM ${c.imagesTable} WHERE id = ANY($1::uuid[]) AND ${c.imageFkColumn} = $2 RETURNING *`,
-          [imagesToDelete, params.id]
+          [imagesToDelete, id]
         );
         await deleteImageFiles(deletedImgs);
       }
@@ -392,7 +402,7 @@ export function makeItemHandlers(c: CollectionConfig) {
       if (Array.isArray(newImages) && newImages.length > 0) {
         const existingCount = await queryOne<{ count: string }>(
           `SELECT COUNT(*) AS count FROM ${c.imagesTable} WHERE ${c.imageFkColumn} = $1`,
-          [params.id]
+          [id]
         );
         const hasExisting = parseInt(existingCount?.count ?? "0") > 0;
         const startIndex = Array.isArray(imageOrder)
@@ -400,14 +410,14 @@ export function makeItemHandlers(c: CollectionConfig) {
           : hasExisting
           ? parseInt(existingCount?.count ?? "0")
           : 0;
-        await insertImagePaths(c, params.id, newImages as ImagePath[], startIndex, hasExisting);
+        await insertImagePaths(c, id, newImages as ImagePath[], startIndex, hasExisting);
       }
 
       const fullItem = await queryOne(
         `${listSelectSql(c, false)}
          WHERE ${c.alias}.id = $1
          GROUP BY ${c.alias}.id`,
-        [params.id]
+        [id]
       );
 
       return NextResponse.json(fullItem);

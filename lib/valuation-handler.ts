@@ -99,9 +99,10 @@ export function makeValuationHandler<T extends { id: string }>(
   c: CollectionConfig,
   buildPrompt: (item: T) => string,
 ) {
+  // Next 15: params is now a Promise; await before reading.
   return async function POST(
     _request: NextRequest,
-    { params }: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> },
   ) {
     try {
       const session = await getServerSession(authOptions);
@@ -109,9 +110,11 @@ export function makeValuationHandler<T extends { id: string }>(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
+      const { id } = await params;
+
       const item = await queryOne<T>(
         `SELECT * FROM ${c.table} WHERE id = $1 AND user_id = $2`,
-        [params.id, session.user.id],
+        [id, session.user.id],
       );
       if (!item) {
         return NextResponse.json({ error: "Item not found" }, { status: 404 });
@@ -150,7 +153,7 @@ export function makeValuationHandler<T extends { id: string }>(
          VALUES ($1, 'ai', $2, $3, $4)
          RETURNING *`,
         [
-          params.id,
+          id,
           parsed.suggested_price,
           parsed.analysis,
           JSON.stringify(parsed.comparable_sales),
