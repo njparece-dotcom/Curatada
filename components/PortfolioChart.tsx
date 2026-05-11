@@ -7,16 +7,13 @@ import { useUserModules, ModuleKey } from "@/lib/UserModulesContext";
 
 interface ChartPoint {
   date: string;
-  guitar: number;
-  watch: number;
-  auto: number;
-  iod: number;
-  total: number;
-  cost: number;
-  guitar_cost: number;
-  watch_cost: number;
-  auto_cost: number;
-  iod_cost: number;
+  // Per-module item counts at this snapshot — added in
+  // app/api/dashboard/history/route.ts. The legacy value/cost fields are
+  // still returned but unused here; the chart is now an item-count view.
+  guitar_count: number;
+  watch_count: number;
+  auto_count: number;
+  iod_count: number;
 }
 
 const PERIODS = [
@@ -29,11 +26,8 @@ const PERIODS = [
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmtShort(v: number): string {
-  if (v === 0) return "$0";
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}m`;
-  if (v >= 1_000)     return `$${Math.round(v / 1_000)}k`;
-  return `$${Math.round(v)}`;
+function fmtCount(v: number): string {
+  return Math.round(v).toLocaleString("en-US");
 }
 
 function fmtDate(iso: string): string {
@@ -50,23 +44,31 @@ function fmtDateFull(iso: string): string {
 
 const W   = 800;
 const H   = 240;
-const PAD = { top: 16, right: 24, bottom: 36, left: 68 };
+const PAD = { top: 16, right: 24, bottom: 36, left: 56 };
 const CW  = W - PAD.left - PAD.right;
 const CH  = H - PAD.top  - PAD.bottom;
 
-const LINE_TOTAL  = "#e9c176";   // gold         — total value
+const LINE_TOTAL  = "#e9c176";   // gold         — total count
 const LINE_GUITAR = "#d4956a";   // amber        — guitars
 const LINE_WATCH  = "#5eafd8";   // steel blue   — watches
 const LINE_AUTO   = "#4ade80";   // green        — automobiles
 const LINE_IOD    = "#a78bfa";   // purple       — items of distinction
-const LINE_COST   = "#6b7280";   // slate gray   — cost basis (dashed)
+
+interface Series {
+  key: "guitar_count" | "watch_count" | "auto_count" | "iod_count";
+  color: string;
+  gradId: string;
+  label: string;
+  tooltipLabel: string;
+  module: ModuleKey;
+}
 
 // All collection series — filtered by enabled modules at render time
-const ALL_SERIES = [
-  { key: "guitar" as const, color: LINE_GUITAR, gradId: "grad-guitar", label: "Guitars",      tooltipLabel: "Guitars",     module: "guitars"      as ModuleKey },
-  { key: "watch"  as const, color: LINE_WATCH,  gradId: "grad-watch",  label: "Watches",      tooltipLabel: "Watches",     module: "watches"      as ModuleKey },
-  { key: "auto"   as const, color: LINE_AUTO,   gradId: "grad-auto",   label: "Automobiles",  tooltipLabel: "Autos",       module: "automobiles"  as ModuleKey },
-  { key: "iod"    as const, color: LINE_IOD,    gradId: "grad-iod",    label: "Collectibles", tooltipLabel: "Collectibles",module: "collectibles" as ModuleKey },
+const ALL_SERIES: Series[] = [
+  { key: "guitar_count", color: LINE_GUITAR, gradId: "grad-guitar", label: "Guitars",      tooltipLabel: "Guitars",     module: "guitars"      },
+  { key: "watch_count",  color: LINE_WATCH,  gradId: "grad-watch",  label: "Watches",      tooltipLabel: "Watches",     module: "watches"      },
+  { key: "auto_count",   color: LINE_AUTO,   gradId: "grad-auto",   label: "Automobiles",  tooltipLabel: "Autos",       module: "automobiles"  },
+  { key: "iod_count",    color: LINE_IOD,    gradId: "grad-iod",    label: "Collectibles", tooltipLabel: "Collectibles",module: "collectibles" },
 ];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -84,18 +86,8 @@ export default function PortfolioChart() {
   // Only show series whose module is enabled
   const activeSeries = ALL_SERIES.filter(s => isEnabled(s.module));
 
-  // Recompute "total" and "cost" per point from only active collections
   const filteredTotal = (p: ChartPoint) =>
     activeSeries.reduce((sum, s) => sum + p[s.key], 0);
-
-  const COST_KEY_MAP: Record<string, keyof ChartPoint> = {
-    guitar:       "guitar_cost",
-    watch:        "watch_cost",
-    auto:         "auto_cost",
-    iod:          "iod_cost",
-  };
-  const filteredCost = (p: ChartPoint) =>
-    activeSeries.reduce((sum, s) => sum + (p[COST_KEY_MAP[s.key]] as number), 0);
 
   useEffect(() => {
     setLoading(true);
@@ -117,8 +109,12 @@ export default function PortfolioChart() {
 
   // ── Scales ──────────────────────────────────────────────────────────────
 
-  const maxVal = Math.max(1, ...points.map(p => Math.max(filteredTotal(p), filteredCost(p))));
+  const maxVal = Math.max(1, ...points.map(filteredTotal));
+  // Use ceiling at a nice integer step (1, 2, 5, 10, ...) so the Y axis
+  // shows whole-number ticks instead of "0.4 items".
   const niceMax = (() => {
+    if (maxVal <= 5)  return Math.max(5, Math.ceil(maxVal));
+    if (maxVal <= 10) return 10;
     const mag = Math.pow(10, Math.floor(Math.log10(maxVal)));
     return Math.ceil(maxVal / mag) * mag;
   })();
@@ -128,16 +124,14 @@ export default function PortfolioChart() {
   const yOf = (v: number) =>
     PAD.top + CH - (v / niceMax) * CH;
 
-  // ── SVG path builders ─────────────────────────────────────────────────
-
-  function linePts(key: keyof ChartPoint) {
-    return points.map((p, i) => `${xOf(i)},${yOf(Number(p[key]))}`).join(" ");
+  function linePts(key: Series["key"]) {
+    return points.map((p, i) => `${xOf(i)},${yOf(p[key])}`).join(" ");
   }
 
-  function areaPath(key: keyof ChartPoint) {
+  function areaPath(key: Series["key"]) {
     if (points.length < 2) return "";
     const pts = points.map((p, i) =>
-      `${i === 0 ? "M" : "L"}${xOf(i)},${yOf(Number(p[key]))}`
+      `${i === 0 ? "M" : "L"}${xOf(i)},${yOf(p[key])}`
     ).join(" ");
     const bl = `L${xOf(points.length - 1)},${yOf(0)} L${xOf(0)},${yOf(0)} Z`;
     return pts + " " + bl;
@@ -145,7 +139,9 @@ export default function PortfolioChart() {
 
   // ── Axis labels ──────────────────────────────────────────────────────
 
-  const Y_TICKS = 5;
+  // Pick an integer tick count that divides niceMax cleanly. For small
+  // collections (niceMax = 5) one tick per item; for bigger ones, 5 ticks.
+  const Y_TICKS = niceMax <= 5 ? niceMax : 5;
   const yLabels = Array.from({ length: Y_TICKS + 1 }, (_, i) => {
     const v = (niceMax / Y_TICKS) * i;
     return { v, y: yOf(v) };
@@ -175,11 +171,12 @@ export default function PortfolioChart() {
     return x > W / 2 ? x - 188 : x + 14;
   }
 
-  // Tooltip row positions — dynamic based on how many series are active
-  // date: 15, total circle: 31/text:35, series start at circle:50/text:54, each 17px, cost after
-  const tooltipHeight = 80 + activeSeries.length * 17;
+  // Tooltip row positions — date row + total row + one per active series.
+  const tooltipHeight = 60 + activeSeries.length * 17;
 
   // ── Render ─────────────────────────────────────────────────────────────
+
+  const totalsAllZero = points.length === 0 || points.every(p => filteredTotal(p) === 0);
 
   return (
     <div className="lg:col-span-8 bg-surface-2 rounded-lg p-8 flex flex-col min-h-[340px]">
@@ -187,9 +184,9 @@ export default function PortfolioChart() {
       {/* Header */}
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h4 className="font-headline text-2xl text-text">Portfolio Value</h4>
+          <h4 className="font-headline text-2xl text-text">Collection Growth</h4>
           <p className="text-text-dim text-xs uppercase tracking-widest mt-1">
-            Estimated value over time
+            Items tracked by category over time
           </p>
         </div>
 
@@ -211,9 +208,8 @@ export default function PortfolioChart() {
         </div>
       </div>
 
-      {/* Legend — always show Total + Cost, then only enabled collection lines */}
+      {/* Legend — Total + per-module lines */}
       <div className="flex flex-wrap gap-5 mb-5">
-        {/* Total — always shown */}
         <div className="flex items-center gap-2">
           <svg width="20" height="8" className="flex-shrink-0">
             <line x1="0" y1="4" x2="20" y2="4" stroke={LINE_TOTAL} strokeWidth={2} strokeLinecap="round" />
@@ -221,7 +217,6 @@ export default function PortfolioChart() {
           <span className="text-xs text-text-dim font-label">Total</span>
         </div>
 
-        {/* Per-module lines */}
         {activeSeries.map(s => (
           <div key={s.key} className="flex items-center gap-2">
             <svg width="20" height="8" className="flex-shrink-0">
@@ -230,22 +225,14 @@ export default function PortfolioChart() {
             <span className="text-xs text-text-dim font-label">{s.label}</span>
           </div>
         ))}
-
-        {/* Cost basis — always shown */}
-        <div className="flex items-center gap-2">
-          <svg width="20" height="8" className="flex-shrink-0">
-            <line x1="0" y1="4" x2="20" y2="4" stroke={LINE_COST} strokeWidth={1.5} strokeLinecap="round" strokeDasharray="4 3" />
-          </svg>
-          <span className="text-xs text-text-dim font-label">Cost Basis</span>
-        </div>
       </div>
 
       {/* Chart area */}
       {loading ? (
         <div className="flex-1 bg-surface-3 rounded animate-pulse" />
-      ) : points.length === 0 || points.every(p => filteredTotal(p) === 0 && filteredCost(p) === 0) ? (
+      ) : totalsAllZero ? (
         <div className="flex-1 flex items-center justify-center text-text-dim text-sm">
-          No valuation data yet — add valuations to see your portfolio over time.
+          No items yet — add an item to see your collection grow over time.
         </div>
       ) : (
         <svg
@@ -282,7 +269,7 @@ export default function PortfolioChart() {
                 fill="#777"
                 style={{ fontSize: 10, fontFamily: "monospace" }}
               >
-                {fmtShort(v)}
+                {fmtCount(v)}
               </text>
             </g>
           ))}
@@ -312,18 +299,12 @@ export default function PortfolioChart() {
             fill="url(#grad-total)"
           />
 
-          {/* Area fills — only for enabled collections */}
+          {/* Per-module area fills */}
           {activeSeries.map(s => (
             <path key={s.key} d={areaPath(s.key)} fill={`url(#${s.gradId})`} />
           ))}
 
-          {/* Lines — cost at back, then active collections, total at front */}
-          <polyline
-            points={points.map((p, i) => `${xOf(i)},${yOf(filteredCost(p))}`).join(" ")}
-            fill="none" stroke={LINE_COST} strokeWidth={1.5}
-            strokeLinejoin="round" strokeLinecap="round"
-            strokeDasharray="5 4"
-          />
+          {/* Lines — per-module first, total on top */}
           {activeSeries.map(s => (
             <polyline
               key={s.key}
@@ -344,11 +325,6 @@ export default function PortfolioChart() {
             const tx = tooltipX(hoverIdx);
             const ty = PAD.top;
             const ptTotal = filteredTotal(pt);
-            const ptCost  = filteredCost(pt);
-            const gain = ptTotal - ptCost;
-            const gainPct = ptCost > 0
-              ? ((gain / ptCost) * 100).toFixed(1)
-              : null;
 
             return (
               <g>
@@ -361,7 +337,6 @@ export default function PortfolioChart() {
                 />
 
                 {/* Dots — only for active series */}
-                <circle cx={xOf(hoverIdx)} cy={yOf(ptCost)}  r={3} fill={LINE_COST}  stroke="#1a1a1a" strokeWidth={1.5} />
                 {activeSeries.map(s => (
                   <circle key={s.key} cx={xOf(hoverIdx)} cy={yOf(pt[s.key])} r={3} fill={s.color} stroke="#1a1a1a" strokeWidth={1.5} />
                 ))}
@@ -386,7 +361,7 @@ export default function PortfolioChart() {
                 <circle cx={tx + 14} cy={ty + 31} r={4} fill={LINE_TOTAL} />
                 <text x={tx + 24} y={ty + 35} fill={LINE_TOTAL}
                   style={{ fontSize: 11, fontFamily: "monospace", fontWeight: "bold" }}>
-                  {fmtShort(ptTotal)}
+                  {fmtCount(ptTotal)} item{ptTotal === 1 ? "" : "s"}
                 </text>
 
                 {/* Active collection rows */}
@@ -398,33 +373,11 @@ export default function PortfolioChart() {
                       <circle cx={tx + 14} cy={cy} r={3} fill={s.color} />
                       <text x={tx + 24} y={textY} fill="#ccc"
                         style={{ fontSize: 10, fontFamily: "monospace" }}>
-                        {s.tooltipLabel} {fmtShort(pt[s.key])}
+                        {s.tooltipLabel} {fmtCount(pt[s.key])}
                       </text>
                     </g>
                   );
                 })}
-
-                {/* Cost basis */}
-                {(() => {
-                  const costCy = ty + 50 + activeSeries.length * 17;
-                  const costTextY = ty + 54 + activeSeries.length * 17;
-                  return (
-                    <g>
-                      <circle cx={tx + 14} cy={costCy} r={3} fill={LINE_COST} />
-                      <text x={tx + 24} y={costTextY} fill="#999"
-                        style={{ fontSize: 10, fontFamily: "monospace" }}>
-                        Cost {fmtShort(ptCost)}
-                      </text>
-                      {gainPct !== null && (
-                        <text x={tx + 24 + 74} y={costTextY}
-                          fill={gain >= 0 ? "#4ade80" : "#f87171"}
-                          style={{ fontSize: 9, fontFamily: "monospace" }}>
-                          {gain >= 0 ? "+" : ""}{gainPct}%
-                        </text>
-                      )}
-                    </g>
-                  );
-                })()}
               </g>
             );
           })()}
