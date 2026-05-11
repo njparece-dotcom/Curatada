@@ -1,6 +1,7 @@
 "use client";
 
 import { IoDItem, CONDITION_COLORS, IOD_CATEGORY_LABELS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface IoDListViewProps {
   items: IoDItem[];
@@ -8,7 +9,7 @@ interface IoDListViewProps {
   onDelete: (id: string) => void;
 }
 
-const fmt = (price: number | null | undefined) => {
+const fmtRaw = (price: number | null | undefined) => {
   if (price == null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -19,6 +20,8 @@ const fmt = (price: number | null | undefined) => {
 };
 
 export default function IoDListView({ items, onItemClick }: IoDListViewProps) {
+  const { hideValues } = useHideValues();
+  const fmt = (price: number | null | undefined) => hideValues ? "$•••" : fmtRaw(price);
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-sm border-collapse min-w-[1000px]">
