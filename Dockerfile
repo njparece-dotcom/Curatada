@@ -46,4 +46,10 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["node", "server.js"]
+
+# Run migrations, then exec the Next server so SIGTERM from the platform
+# (Railway, Fly, etc.) flows to Node directly and graceful shutdown works.
+# Migrations are idempotent via the schema_migrations tracker, so re-running
+# on every boot is safe. A platform can still override CMD via a custom
+# start command if they want migrate-only or server-only.
+CMD ["sh", "-c", "node scripts/migrate.js && exec node server.js"]
