@@ -15,7 +15,7 @@ export interface ImageUpload {
   files: File[];
   previews: string[];
   dragOver: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   reorderDragIdx: number | null;
   reorderDropIdx: number | null;
   onPickClick: () => void;

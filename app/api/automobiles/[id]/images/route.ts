@@ -19,12 +19,13 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const images = await query<AutoImage>(
       `SELECT * FROM auto_images WHERE auto_id = $1 ORDER BY sort_order ASC, is_primary DESC, created_at ASC`,
-      [params.id]
+      [id]
     );
     return NextResponse.json(images);
   } catch (error) {
@@ -35,10 +36,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Verify parent exists
     const parent = await queryOne<{ id: string }>(

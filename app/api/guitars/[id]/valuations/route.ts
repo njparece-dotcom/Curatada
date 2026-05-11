@@ -4,14 +4,15 @@ import { GuitarValuation } from "@/lib/types";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const valuations = await query<GuitarValuation>(
       `SELECT * FROM guitar_valuations
        WHERE guitar_item_id = $1
        ORDER BY created_at DESC`,
-      [params.id]
+      [id]
     );
     return NextResponse.json(valuations);
   } catch (error) {
@@ -22,9 +23,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { price, notes } = body;
 
@@ -36,7 +38,7 @@ export async function POST(
       `INSERT INTO guitar_valuations (guitar_item_id, valuation_type, price, notes)
        VALUES ($1, 'user', $2, $3)
        RETURNING *`,
-      [params.id, Number(price), notes || null]
+      [id, Number(price), notes || null]
     );
 
     return NextResponse.json(valuation, { status: 201 });

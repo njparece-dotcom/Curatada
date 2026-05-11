@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string; imageId: string } }
+  { params }: { params: Promise<{ id: string; imageId: string }> }
 ) {
   try {
-    const { id, imageId } = params;
+    const { id, imageId } = await params;
 
     const image = await queryOne<IoDImage>(
       `DELETE FROM iod_images WHERE id = $1 AND iod_id = $2 RETURNING *`,

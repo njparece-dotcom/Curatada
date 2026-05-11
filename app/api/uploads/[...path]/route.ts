@@ -14,10 +14,13 @@ const MIME: Record<string, string> = {
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
+  // Next 15: params is a Promise. Destructure under a different name to avoid
+  // shadowing the imported `path` module.
+  const { path: pathSegments } = await params;
   // Sanitise: take only basename of each segment to prevent traversal
-  const safeName = params.path.map((s) => path.basename(s)).join("/");
+  const safeName = pathSegments.map((s) => path.basename(s)).join("/");
   const filePath = path.join(UPLOADS_DIR, safeName);
 
   // Double-check resolved path is still inside UPLOADS_DIR

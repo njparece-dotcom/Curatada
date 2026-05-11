@@ -20,9 +20,8 @@ const nextConfig = {
       },
     ],
   },
-  experimental: {
-    serverComponentsExternalPackages: ["pg"],
-  },
+  // Renamed in Next 15: experimental.serverComponentsExternalPackages -> serverExternalPackages.
+  serverExternalPackages: ["pg"],
 };
 
 export default nextConfig;

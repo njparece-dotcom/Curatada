@@ -8,14 +8,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const { id } = await params;
     const pursuit = await queryOne<AutoPursuit>(
       `SELECT * FROM auto_pursuits WHERE id = $1 AND user_id = $2`,
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (!pursuit) {
@@ -34,11 +35,12 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const { id } = await params;
     const body = await request.json();
     const {
       brand,
@@ -91,7 +93,7 @@ export async function PATCH(
         exclude_terms || null,
         notes || null,
         status || "active",
-        params.id,
+        id,
         session.user.id,
       ]
     );
@@ -112,14 +114,15 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const { id } = await params;
     const deleted = await queryOne<AutoPursuit>(
       `DELETE FROM auto_pursuits WHERE id = $1 AND user_id = $2 RETURNING *`,
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (!deleted) {
