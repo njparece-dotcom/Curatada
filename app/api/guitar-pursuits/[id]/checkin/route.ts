@@ -4,10 +4,10 @@ import { GuitarPursuit } from "@/lib/types";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { action } = await request.json() as { action: "snooze" | "dismiss" | "deactivate" };
 
     let pursuit: GuitarPursuit | null = null;

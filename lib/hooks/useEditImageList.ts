@@ -24,7 +24,7 @@ export type EditImage<T extends BaseImage> =
 export interface EditImageList<T extends BaseImage> {
   editImages: EditImage<T>[];
   dragOver: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   reorderDragIdx: number | null;
   reorderDropIdx: number | null;
   // drop-zone
