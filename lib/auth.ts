@@ -23,6 +23,7 @@ export const authOptions: NextAuthOptions = {
         if (!user || !user.password_hash) return null;
         const valid = await bcrypt.compare(credentials.password, user.password_hash);
         if (!valid) return null;
+        await updateLastLogin(user.id);
         return { id: user.id, email: user.email, name: user.name, image: user.image };
       },
     }),
@@ -65,6 +66,7 @@ export const authOptions: NextAuthOptions = {
           "INSERT INTO accounts (user_id, type, provider, provider_account_id, refresh_token, access_token, expires_at, token_type, scope, id_token, session_state) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (provider, provider_account_id) DO UPDATE SET access_token = EXCLUDED.access_token, expires_at = EXCLUDED.expires_at",
           [userId, account.type, account.provider, account.providerAccountId, account.refresh_token || null, account.access_token || null, account.expires_at || null, account.token_type || null, account.scope || null, account.id_token || null, account.session_state || null]
         );
+        await updateLastLogin(userId);
       }
       return true;
     },
@@ -84,4 +86,15 @@ async function claimOrphanedData(userId: string) {
   await query("UPDATE watch_items SET user_id = $1 WHERE user_id IS NULL", [userId]);
   await query("UPDATE automobiles SET user_id = $1 WHERE user_id IS NULL", [userId]);
   await query("UPDATE items_of_distinction SET user_id = $1 WHERE user_id IS NULL", [userId]);
+}
+
+// Best-effort: stamp the user's last successful auth. Swallows errors so a
+// transient DB hiccup can't block sign-in. Read by the mgmt API to derive
+// "active in last N days".
+async function updateLastLogin(userId: string): Promise<void> {
+  try {
+    await query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
+  } catch (err) {
+    console.warn("[auth] updateLastLogin failed:", err);
+  }
 }
