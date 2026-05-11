@@ -282,7 +282,7 @@ export default function CategoryPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="bg-surface border border-border rounded-2xl overflow-hidden animate-pulse">
               <div className="aspect-[4/3] bg-surface-2" />
@@ -314,7 +314,7 @@ export default function CategoryPage() {
           </button>
         </div>
       ) : viewMode === "tiles" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {sortedItems.map((item) => (
             <GuitarCard
               key={item.id}
