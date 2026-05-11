@@ -1,5 +1,7 @@
 "use client";
 
+import { useHideValues } from "@/lib/HideValuesContext";
+
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
@@ -11,7 +13,7 @@ import {
 } from "@/lib/types";
 import IoDDetailModal from "@/components/IoDDetailModal";
 
-const fmt = (n: number | null | undefined) => {
+const fmtRaw = (n: number | null | undefined) => {
   if (n == null) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(n));
 };
@@ -24,6 +26,8 @@ const COLUMNS = [
 const PAGE_SIZE = 15;
 
 export default function CollectiblesPage() {
+  const { hideValues } = useHideValues();
+  const fmt = (n: number | null | undefined) => hideValues ? "$•••" : fmtRaw(n);
   const [allItems, setAllItems] = useState<IoDItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<IoDItem | null>(null);
