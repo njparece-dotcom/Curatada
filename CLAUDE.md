@@ -179,6 +179,46 @@ signal to extend the factory.
 - `scripts/migrate.js` — manual migration run (already auto-runs on Railway
   deploy via the Dockerfile CMD).
 
+## Management API (cross-app dashboard contract)
+
+This app implements the standard org-wide management API at
+`/api/mgmt/v1/*` so a central dashboard can pull metrics. Contract is
+identical across every app in the org — see
+`~/Downloads/MANAGEMENT_API_PLAYBOOK.md` for the master spec; the bits
+specific to this app:
+
+- **App slug**: `curatada` (returned in the envelope's `app` field).
+- **Endpoints**: `GET /health`, `GET /summary`, `GET /users` (cursor-paginated
+  via `?cursor=&limit=`; default 100, max 500). Implementation in
+  `app/api/mgmt/v1/*/route.ts`; shared bits in `lib/mgmt/`.
+- **Auth**: `Authorization: Bearer ${MGMT_API_TOKEN}` (constant-time compare
+  via `crypto.timingSafeEqual`). If `MGMT_REQUIRE_INTERNAL=1`, requests with
+  any `x-forwarded-for` header are rejected as well — pairs with private
+  Railway DNS (`curatada.railway.internal`) so public-edge probes can't
+  reach the API at all. Without `MGMT_API_TOKEN` set, every endpoint
+  returns 503.
+- **Rate limit**: 60 req/min per source IP via an in-memory sliding window
+  (`lib/mgmt/rateLimit.ts`), singleton on `globalThis`. Single-replica safe;
+  swap to Redis if scaled out.
+- **`users_active_30d` definition** (app-specific): signed in within 30 days
+  AND has at least one item (any of the four collections) added or updated
+  within the same 30 days. Defined in the SQL in `lib/mgmt/data.ts` — the
+  dashboard does not redefine it client-side.
+- **`last_login_at`** is stamped (best-effort, never blocks auth) in
+  `lib/auth.ts` for both the Credentials `authorize` path and the OAuth
+  `signIn` callback. Migration `015_users_last_login_at.sql` adds the
+  column + index.
+- **Middleware exclusion**: `/api/mgmt/*` is excluded from the NextAuth
+  middleware matcher in `middleware.ts` — the mgmt API has its own auth
+  layer and must not be gated by NextAuth.
+
+Smoke test once deployed:
+
+```bash
+curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
+     https://curatada-production.up.railway.app/api/mgmt/v1/health
+```
+
 ## Phase status
 
 - **Phase 1** (auth lockdown — `/api/upload`, all `[id]/value`, auto/iod
