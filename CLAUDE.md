@@ -1,9 +1,9 @@
 # Curatada (Quallection)
 
 Personal "vault" for tracking high-end collections — guitars, watches, automobiles,
-items of distinction ("iod" / collectibles). Next.js 14 App Router + Postgres +
-NextAuth (JWT, multi-provider) + Tailwind. Deployed on Railway in production;
-local dev runs against a docker-compose Postgres.
+items of distinction ("iod" / collectibles). Next.js 15 App Router (React 19) +
+Postgres + NextAuth (JWT, multi-provider) + Tailwind. Deployed on Railway in
+production; local dev runs against a docker-compose Postgres.
 
 ## Run
 
@@ -153,6 +153,18 @@ objects.
   importing it doesn't throw during `next build`'s page-data collection.
   Don't reintroduce module-level Pool construction or the build breaks.
 
+- **Next 15: dynamic route `params` is a `Promise`.** Every route handler
+  with a `[param]` segment must accept `{ params: Promise<{...}> }` and
+  `await params` before reading fields. The factories in
+  `lib/collection-handler.ts` / `lib/valuation-handler.ts` already handle
+  this — if you add a new dynamic route by hand, follow the same pattern
+  (`const { id } = await params;` near the top of the handler). Client
+  components using `useParams()` are unaffected — that hook stays sync.
+
+- **React 19 `useRef`** returns `RefObject<T | null>`, not `RefObject<T>`.
+  Hook return types that expose a ref need the `| null` (see
+  `lib/hooks/useImageUpload.ts` and `lib/hooks/useEditImageList.ts`).
+
 ## When adding a feature to "all four modules"
 
 The Phase 3 abstractions cover the list / item-CRUD / valuation routes — a
@@ -222,11 +234,23 @@ curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
 ## Phase status
 
 - **Phase 1** (auth lockdown — `/api/upload`, all `[id]/value`, auto/iod
-  pursuits, `value-batch`, `run-search`) — done (PR Initial import).
+  pursuits, `value-batch`, `run-search`) — done.
 - **Phase 2** (schema_migrations tracker + dedup of 009) — done.
 - **Phase 3a/b/c/d** (collection handler factory, valuation handler factory,
   Add modal form shell, Edit modal form shell) — done.
+- **Phase 5** (Next 15 + React 19 upgrade) — done (PR #13). Async route
+  `params`, `serverComponentsExternalPackages` → `serverExternalPackages`,
+  React 19 `useRef` typing all handled.
+- **Mgmt API** (`/api/mgmt/v1/*`) — done (PR #12); see the Management API
+  section above.
 - **Phase 4** (object storage for uploads) — not started; pick a provider
-  (S3 / R2 / Cloudflare Images) before tackling.
-- **Phase 5** (Next 15 upgrade) — not started; non-blocking; some `npm audit`
-  advisories only have fixes on the 15.x line.
+  (S3 / R2 / Cloudflare Images) before tackling. Until then, any image
+  uploaded on Railway vanishes on the next redeploy.
+- **CI gate for auto-merge** — not done. `gh pr merge --auto` is enabled
+  on the repo but with no required status check it merges immediately.
+  ~30 lines of GitHub Actions YAML (`tsc --noEmit` + `next build`) plus
+  branch protection requiring the check would make `--auto` actually wait.
+- **`purchase_date` field on Auto / IoD modals** — DB + API accept it; the
+  Add/Edit modal field JSX doesn't expose it. ~80 lines across four files.
+- **Disable `claimOrphanedData`** — keep on while you're still bootstrapping
+  data; flip off before opening signups.
