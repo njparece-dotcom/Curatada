@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { IoDItem, IoDImage, ComparableSale, CONDITION_COLORS, IOD_CATEGORY_LABELS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 import EditIoDModal from "@/components/EditIoDModal";
 
 interface IoDDetailModalProps {
@@ -32,7 +33,7 @@ interface AIResult {
   analysis: string;
 }
 
-const fmt = (v: number | null | undefined) => {
+const fmtRaw = (v: number | null | undefined) => {
   if (v == null) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(Number(v));
 };
@@ -49,6 +50,8 @@ export default function IoDDetailModal({
   onValuationSaved,
   onItemUpdated,
 }: IoDDetailModalProps) {
+  const { hideValues } = useHideValues();
+  const fmt = (v: number | null | undefined) => hideValues ? "$•••" : fmtRaw(v);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});

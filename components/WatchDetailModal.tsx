@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { WatchItem, WatchImage, WatchValuation, ComparableSale, CONDITION_COLORS, WATCH_CATEGORY_LABELS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 import EditWatchModal from "@/components/EditWatchModal";
 
 interface WatchDetailModalProps {
