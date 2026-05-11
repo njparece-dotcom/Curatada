@@ -5,8 +5,13 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+# Copy both manifests so the deps-stage layer cache invalidates whenever
+# either changes, and use `npm ci` for a deterministic, lockfile-driven
+# install. Without the lock file copied, `npm install` resolves to whatever
+# the registry returns and Railway can hold a stale layer past a deps bump
+# (this exact bug bit the R2 rollout — see PR #21 commit log).
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
