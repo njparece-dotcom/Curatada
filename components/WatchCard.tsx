@@ -116,7 +116,9 @@ export default function WatchCard({ item, onClick, onDelete }: WatchCardProps) {
                 return (
                   <>
                     <span className="text-xs font-semibold text-text font-mono">
-                      ${Number(price).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      {hideValues
+                        ? "$•••"
+                        : `$${Number(price).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                     </span>
                     <span className={`block text-[10px] ${showAI ? "text-accent" : "text-text-dim"}`}>
                       {showAI ? "AI Est." : "My Value"}
@@ -127,7 +129,9 @@ export default function WatchCard({ item, onClick, onDelete }: WatchCardProps) {
             </div>
           ) : item.purchase_price != null ? (
             <span className="text-xs text-text-muted font-mono">
-              ${Number(item.purchase_price).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+              {hideValues
+                ? "$•••"
+                : `$${Number(item.purchase_price).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}
             </span>
           ) : null}
         </div>
