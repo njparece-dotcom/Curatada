@@ -7,6 +7,7 @@ import ItemDetailModal from "@/components/ItemDetailModal";
 import WatchDetailModal from "@/components/WatchDetailModal";
 import PortfolioChart from "@/components/PortfolioChart";
 import { useUserModules } from "@/lib/UserModulesContext";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ interface DashboardData {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function formatCurrency(v: number | null | undefined): string {
+function formatCurrencyValue(v: number | null | undefined): string {
   if (v == null || Number(v) === 0) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -158,6 +159,8 @@ function PhotoStack({ images }: { images: string[] }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { hideValues } = useHideValues();
+  const formatCurrency = (v: number | null | undefined): string => hideValues ? "$•••" : formatCurrencyValue(v);
   const { isEnabled } = useUserModules();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);

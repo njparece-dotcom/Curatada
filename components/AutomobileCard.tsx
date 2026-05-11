@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AutoItem, CONDITION_COLORS } from "@/lib/types";
+import { useHideValues } from "@/lib/HideValuesContext";
 
 interface AutomobileCardProps {
   item: AutoItem;
@@ -10,6 +11,7 @@ interface AutomobileCardProps {
 }
 
 export default function AutomobileCard({ item, onClick, onDelete }: AutomobileCardProps) {
+  const { hideValues } = useHideValues();
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
 
