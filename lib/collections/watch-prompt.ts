@@ -46,3 +46,44 @@ After researching, respond with ONLY valid JSON (no markdown, no explanation) in
 
 Include 3-5 comparable listings total (mix of sold and for-sale is fine).`;
 }
+
+// ── Insurance norms prompt (CUR-4) ───────────────────────────────────────────
+//
+// Watch insurance multipliers tend to cluster tighter than guitars — luxury
+// watch carriers (Chubb, Jewelers Mutual) typically agree on values ~1.1-1.4×
+// current market for established references; vintage rarities (especially
+// dial variants) can run higher.
+
+export function watchInsuranceNormsPrompt(categories: string[]): string {
+  const categoriesJSON = JSON.stringify(categories);
+  return `You are an insurance valuation expert specializing in luxury and vintage timepieces. For each category below, research the typical multiplier that an insurance scheduled value bears relative to the current open-market resale price.
+
+Categories to research (use the exact slug strings in your response): ${categoriesJSON}
+
+Context for each category:
+- "luxury-watches": modern luxury references (Rolex, Patek, AP, etc.). Multipliers near 1.1-1.4× — supply tight, replacement cost includes acquisition friction.
+- "sport-watches": divers, chronographs, racing watches. Similar range to luxury; popular models with waitlists may run higher.
+- "dress-watches": classic dress pieces, often gold case. Multipliers ~1.1-1.3×.
+- "vintage-watches": pre-1990 pieces. Multipliers can run higher (~1.2-1.6×) due to scarcity, condition-dependent appraisal premium, and dial-variant value.
+
+For each category, derive a single multiplier (decimal, typically between 1.0 and 1.6).
+
+Considerations:
+- Insurance "agreed value" reflects retail replacement cost, including dealer markup and finding a comparable specimen.
+- Watch carriers (Chubb, Jewelers Mutual, Hodinkee Insurance) publish typical scheduling norms — use web_search to find recent sources.
+- Vintage watches with original parts/papers carry higher multipliers than service-replacement examples.
+- Auction prices (Phillips, Christie's, Sotheby's, Bonhams) are useful proxies for high-end replacement cost.
+
+Respond with ONLY valid JSON (no markdown, no explanation):
+{
+  "norms": [
+    {
+      "category": "<one of the categories above, verbatim>",
+      "multiplier": <decimal, typically 1.0-1.6>,
+      "notes": "<1-2 sentences citing the source or industry practice>"
+    }
+  ]
+}
+
+Include one entry per category requested. Omit any category for which you cannot find a defensible multiplier.`;
+}
