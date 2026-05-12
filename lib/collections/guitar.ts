@@ -21,6 +21,7 @@ export const guitarConfig: CollectionConfig = {
     { name: "short_description", trim: true },
     { name: "link", trim: true },
     { name: "notes", trim: true },
+    { name: "insure", type: "boolean" },
   ],
   conditionRequired: true,
   patchSetUpdatedAt: false,

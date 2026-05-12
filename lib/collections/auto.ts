@@ -26,6 +26,7 @@ export const autoConfig: CollectionConfig = {
     { name: "purchase_date" },
     { name: "purchase_source", trim: true },
     { name: "notes", trim: true },
+    { name: "insure", type: "boolean" },
   ],
   conditionRequired: false,
   patchSetUpdatedAt: true,

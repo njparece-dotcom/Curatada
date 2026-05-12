@@ -40,6 +40,7 @@ interface FormState {
   purchase_price: string;
   purchase_source: string;
   notes: string;
+  insure: boolean;
 }
 
 const TRANSMISSION_OPTIONS = ["Automatic", "Manual", "CVT", "Semi-Automatic", "Other"];
@@ -63,6 +64,7 @@ export default function EditAutomobileModal({ item, onClose, onItemUpdated }: Ed
     purchase_price: item.purchase_price != null ? String(item.purchase_price) : "",
     purchase_source: item.purchase_source ?? "",
     notes: item.notes ?? "",
+    insure: item.insure ?? false,
   });
 
   const editImages = useEditImageList<AutoImage>(item.images ?? []);
@@ -123,6 +125,7 @@ export default function EditAutomobileModal({ item, onClose, onItemUpdated }: Ed
         purchase_price: form.purchase_price ? parseFloat(form.purchase_price) : null,
         purchase_source: form.purchase_source.trim() || null,
         notes: form.notes.trim() || null,
+        insure: form.insure,
         images_to_delete: imagesToDelete,
         image_order: imageOrder,
         image_paths: uploadedFiles,
@@ -376,6 +379,21 @@ export default function EditAutomobileModal({ item, onClose, onItemUpdated }: Ed
             className="w-full bg-surface-2 border border-border text-text rounded-xl px-4 py-2.5 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none resize-none"
           />
         </div>
+
+        <label className="flex items-start gap-3 cursor-pointer select-none p-3 rounded-xl border border-border bg-surface-2 hover:border-border-2 transition-colors">
+          <input
+            type="checkbox"
+            checked={form.insure}
+            onChange={(e) => setForm((prev) => ({ ...prev, insure: e.target.checked }))}
+            className="mt-0.5 w-4 h-4 rounded border-border bg-surface-3 text-accent focus:ring-accent focus:ring-1 accent-accent"
+          />
+          <span className="text-sm">
+            <span className="block font-medium text-text">Include in insurance schedule</span>
+            <span className="block text-xs text-text-dim mt-0.5">
+              Adds this item to The Paperwork → Insurance and triggers an automatic insurance valuation when you next run an AI value.
+            </span>
+          </span>
+        </label>
 
         <EditImagesEditor edit={editImages} />
 

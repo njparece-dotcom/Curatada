@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { IoDItem, IoDImage, ComparableSale, CONDITION_COLORS, IOD_CATEGORY_LABELS } from "@/lib/types";
 import { useHideValues } from "@/lib/HideValuesContext";
 import EditIoDModal from "@/components/EditIoDModal";
+import InsuranceValueRow from "@/components/InsuranceValueRow";
 
 interface IoDDetailModalProps {
   item: IoDItem;
@@ -376,6 +377,9 @@ export default function IoDDetailModal({
                 )}
               </div>
             </div>
+
+            {/* Insurance value (CUR-3) — renders only when item.insure is true. */}
+            <InsuranceValueRow item={item} />
 
             {/* Valuation actions */}
             {valuationStep === "idle" && (

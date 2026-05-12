@@ -85,6 +85,13 @@ function listSelectSql(c: CollectionConfig, withValuations: boolean): string {
 
 function normalizeField(value: unknown, spec: FieldSpec): unknown {
   if (value == null) return null;
+  // Boolean fields bypass the legacy `value || null` coercion: a `false` value
+  // must survive the round-trip to the DB. The NOT NULL `insure` column on
+  // each item table (migration 016) would otherwise blow up on INSERT when a
+  // user leaves the "Include in insurance schedule" checkbox unticked.
+  if (spec.type === "boolean") {
+    return value === true || value === "true";
+  }
   if (spec.trim && typeof value === "string") {
     const trimmed = value.trim();
     return trimmed || null;
