@@ -96,6 +96,7 @@ export default function InsuranceScheduleView() {
   const [data, setData] = useState<ScheduleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +117,29 @@ export default function InsuranceScheduleView() {
   }, []);
 
   const handlePrint = () => window.print();
+
+  async function handleExportPdf() {
+    if (!data || data.items.length === 0) return;
+    if (!confirm("This PDF will contain real dollar values for every insured item. Continue?")) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/paperwork/insurance/export", { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "PDF export failed");
+      }
+      const json: { pdf_url: string } = await res.json();
+      // Open in a new tab; the URL is a 1-hour presigned R2 link (or a local
+      // path in dev). The browser handles download / inline view based on
+      // Content-Type.
+      window.open(json.pdf_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("PDF export failed", err);
+      alert(err instanceof Error ? err.message : "PDF export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -187,14 +211,20 @@ export default function InsuranceScheduleView() {
             Print
           </button>
           <button
-            disabled
-            title="PDF export ships in Story CUR-8"
-            className="flex items-center gap-2 bg-surface-2 border border-border text-text-dim font-medium px-4 py-2 rounded-xl text-sm opacity-50 cursor-not-allowed"
+            onClick={handleExportPdf}
+            disabled={empty || exporting}
+            className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-white font-medium px-4 py-2 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>
-            Export PDF
+            {exporting ? (
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+            )}
+            {exporting ? "Generating…" : "Export PDF"}
           </button>
         </div>
       </div>
