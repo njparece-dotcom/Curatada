@@ -14,6 +14,7 @@ import AddItemModal from "@/components/AddItemModal";
 import ItemDetailModal from "@/components/ItemDetailModal";
 import ValuationPromptModal from "@/components/ValuationPromptModal";
 import CSVImportModal from "@/components/CSVImportModal";
+import BulkActionBar from "@/components/BulkActionBar";
 import { useRevalue, needsRevalue } from "@/lib/RevalueContext";
 
 type SortField = "date" | "brand" | "value";
@@ -34,6 +35,29 @@ export default function CategoryPage() {
   const [sortBy, setSortBy] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
+  // CUR-6: bulk-select state, scoped to this category page.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = useCallback((id: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  // Clear stale selections when the underlying item list changes (e.g. after
+  // a bulk action) — keeps the BulkActionBar count honest.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const validIds = new Set(items.map((i) => i.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (validIds.has(id)) next.add(id); });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [items]);
 
   const { startRevalue, state: revalueState } = useRevalue();
 
@@ -321,6 +345,8 @@ export default function CategoryPage() {
               item={item}
               onClick={() => setSelectedItem(item)}
               onDelete={handleItemDeleted}
+              isSelected={selectedIds.has(item.id)}
+              onSelectChange={toggleSelect}
             />
           ))}
         </div>
@@ -331,6 +357,29 @@ export default function CategoryPage() {
           onDelete={handleItemDeleted}
         />
       )}
+
+      {/* CUR-6: bulk-action bar (visible when any items selected). */}
+      <BulkActionBar
+        module="guitars"
+        selectedIds={selectedIds}
+        selectedInsuredCount={items.filter((i) => selectedIds.has(i.id) && i.insure).length}
+        totalSelectableCount={items.length}
+        onClearSelection={clearSelection}
+        onSelectAll={() => setSelectedIds(new Set(items.map((i) => i.id)))}
+        onActionComplete={(result) => {
+          if (result.action === "set_insure") {
+            setItems((prev) =>
+              prev.map((it) => (result.ids.includes(it.id) ? { ...it, insure: result.value ?? it.insure } : it)),
+            );
+          } else if (result.action === "archive") {
+            // Archived items disappear from the default list view; future
+            // Archive view will surface them via ?include_archived=true.
+            setItems((prev) => prev.filter((it) => !result.ids.includes(it.id)));
+          } else if (result.action === "delete") {
+            setItems((prev) => prev.filter((it) => !result.ids.includes(it.id)));
+          }
+        }}
+      />
 
       {showAddModal && (
         <AddItemModal

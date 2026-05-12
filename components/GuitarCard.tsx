@@ -8,9 +8,13 @@ interface GuitarCardProps {
   item: GuitarItem;
   onClick: () => void;
   onDelete: (id: string) => void;
+  // Bulk-select props (CUR-6). Both optional so existing callers that don't
+  // need selection keep working unchanged.
+  isSelected?: boolean;
+  onSelectChange?: (id: string, selected: boolean) => void;
 }
 
-export default function GuitarCard({ item, onClick, onDelete }: GuitarCardProps) {
+export default function GuitarCard({ item, onClick, onDelete, isSelected, onSelectChange }: GuitarCardProps) {
   const { hideValues } = useHideValues();
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -36,9 +40,32 @@ export default function GuitarCard({ item, onClick, onDelete }: GuitarCardProps)
 
   return (
     <div
-      className="item-card group relative bg-surface border border-border rounded-2xl overflow-hidden cursor-pointer hover:border-accent/40 hover:shadow-xl hover:shadow-black/30"
+      className={`item-card group relative bg-surface border rounded-2xl overflow-hidden cursor-pointer hover:border-accent/40 hover:shadow-xl hover:shadow-black/30 transition-colors ${
+        isSelected ? "border-accent ring-2 ring-accent/30" : "border-border"
+      }`}
       onClick={onClick}
     >
+      {/* Bulk-select checkbox (CUR-6) — only renders when wired by parent. */}
+      {onSelectChange && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectChange(item.id, !isSelected);
+          }}
+          className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-md border flex items-center justify-center transition-all ${
+            isSelected
+              ? "bg-accent border-accent text-white opacity-100"
+              : "bg-black/40 backdrop-blur-sm border-white/30 text-transparent hover:text-white opacity-0 group-hover:opacity-100"
+          }`}
+          title={isSelected ? "Deselect" : "Select"}
+          aria-pressed={isSelected ? "true" : "false"}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </button>
+      )}
+
       {/* Image */}
       <div className="aspect-[4/3] bg-surface-2 relative overflow-hidden">
         {primaryImage && !imgError ? (

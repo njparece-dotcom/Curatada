@@ -201,13 +201,21 @@ export function makeListHandlers(c: CollectionConfig) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const category = new URL(request.url).searchParams.get("category");
+      const requestUrl = new URL(request.url);
+      const category = requestUrl.searchParams.get("category");
+      // CUR-6: default list responses hide archived items. Pass
+      // ?include_archived=true to surface the full set (no UI uses this in
+      // v1 — the param is threaded through ahead of a future Archive view).
+      const includeArchived = requestUrl.searchParams.get("include_archived") === "true";
 
       const params: unknown[] = [session.user.id];
       let sql = `${listSelectSql(c, true)}
         WHERE ${c.alias}.user_id = $1`;
+      if (!includeArchived) {
+        sql += ` AND ${c.alias}.archived_at IS NULL`;
+      }
       if (category) {
-        sql += ` AND ${c.alias}.category = $2`;
+        sql += ` AND ${c.alias}.category = $${params.length + 1}`;
         params.push(category);
       }
       sql += ` GROUP BY ${c.alias}.id ORDER BY ${c.alias}.created_at DESC`;
@@ -452,4 +460,116 @@ export function makeItemHandlers(c: CollectionConfig) {
   }
 
   return { GET, PATCH, DELETE };
+}
+
+// ── Bulk-action factory (CUR-6) ──────────────────────────────────────────────
+//
+// One factory for all four modules. The route file at
+// app/api/{module}/bulk-action/route.ts simply re-exports POST from this.
+//
+// Body shape:
+//   { action: "set_insure" | "archive" | "delete", ids: string[], value?: boolean }
+//
+// Semantics:
+//   - set_insure: requires `value: boolean`; UPDATEs `insure = $value` for all
+//     `ids` belonging to the session user.
+//   - archive: UPDATEs `archived_at = NOW()` for all rows where archived_at IS
+//     NULL (idempotent — re-archiving an already-archived row is a no-op).
+//   - delete: DELETEs the rows. Cascades remove image and valuation rows
+//     automatically (FK ON DELETE CASCADE). Image files in R2/disk are
+//     swept by `deleteImageFiles` after the parent rows are gone.
+//
+// Authorization is enforced by SQL — every UPDATE/DELETE includes
+// `WHERE id = ANY($ids) AND user_id = $session_user_id`. The returned
+// `affected` count is the source of truth: if the user submitted 5 IDs but
+// only owns 3 of them, the response will report `affected: 3`.
+
+type BulkAction = "set_insure" | "archive" | "delete";
+
+export function makeBulkActionHandler(c: CollectionConfig) {
+  return async function POST(request: NextRequest) {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      let body: { action?: string; ids?: unknown; value?: unknown };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      }
+
+      const action = body.action as BulkAction | undefined;
+      if (action !== "set_insure" && action !== "archive" && action !== "delete") {
+        return NextResponse.json(
+          { error: "action must be one of: set_insure | archive | delete" },
+          { status: 400 },
+        );
+      }
+
+      const ids = Array.isArray(body.ids) ? body.ids.filter((id) => typeof id === "string") : null;
+      if (!ids || ids.length === 0) {
+        return NextResponse.json({ error: "ids must be a non-empty string[]" }, { status: 400 });
+      }
+
+      // Hard ceiling on bulk size — prevents a runaway client from
+      // accidentally affecting hundreds of rows. 200 is generous for the
+      // expected "select a category and toggle" workflow.
+      if (ids.length > 200) {
+        return NextResponse.json({ error: "Bulk actions are limited to 200 ids per request" }, { status: 400 });
+      }
+
+      if (action === "set_insure") {
+        if (typeof body.value !== "boolean") {
+          return NextResponse.json({ error: "set_insure requires `value: boolean`" }, { status: 400 });
+        }
+        const result = await query<{ id: string }>(
+          `UPDATE ${c.table}
+             SET insure = $1${c.patchSetUpdatedAt ? ", updated_at = NOW()" : ""}
+           WHERE id = ANY($2::uuid[]) AND user_id = $3
+           RETURNING id`,
+          [body.value, ids, session.user.id],
+        );
+        return NextResponse.json({ action, affected: result.length, ids: result.map((r) => r.id) });
+      }
+
+      if (action === "archive") {
+        const result = await query<{ id: string }>(
+          `UPDATE ${c.table}
+             SET archived_at = NOW()${c.patchSetUpdatedAt ? ", updated_at = NOW()" : ""}
+           WHERE id = ANY($1::uuid[]) AND user_id = $2 AND archived_at IS NULL
+           RETURNING id`,
+          [ids, session.user.id],
+        );
+        return NextResponse.json({ action, affected: result.length, ids: result.map((r) => r.id) });
+      }
+
+      // action === "delete"
+      // Read filenames before the cascade so we can sweep image files after
+      // the parent delete commits (same pattern as makeItemHandlers.DELETE).
+      const images = await query<{ filename: string }>(
+        `SELECT img.filename
+           FROM ${c.imagesTable} img
+           JOIN ${c.table} ${c.alias} ON ${c.alias}.id = img.${c.imageFkColumn}
+          WHERE img.${c.imageFkColumn} = ANY($1::uuid[]) AND ${c.alias}.user_id = $2`,
+        [ids, session.user.id],
+      );
+      const deleted = await query<{ id: string }>(
+        `DELETE FROM ${c.table}
+          WHERE id = ANY($1::uuid[]) AND user_id = $2
+          RETURNING id`,
+        [ids, session.user.id],
+      );
+      await deleteImageFiles(images);
+      return NextResponse.json({ action, affected: deleted.length, ids: deleted.map((r) => r.id) });
+    } catch (error) {
+      console.error(`POST /api/${c.label}/bulk-action error:`, error);
+      return NextResponse.json(
+        { error: `Failed to perform bulk action on ${c.label}` },
+        { status: 500 },
+      );
+    }
+  };
 }

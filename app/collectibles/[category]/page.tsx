@@ -14,6 +14,7 @@ import AddIoDModal from "@/components/AddIoDModal";
 import IoDDetailModal from "@/components/IoDDetailModal";
 import IoDValuationPromptModal from "@/components/IoDValuationPromptModal";
 import IoDCSVImportModal from "@/components/IoDCSVImportModal";
+import BulkActionBar from "@/components/BulkActionBar";
 
 type SortField = "date" | "brand" | "value";
 type SortDir = "asc" | "desc";
@@ -33,6 +34,27 @@ export default function IoDCategoryPage() {
   const [sortBy, setSortBy] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
+  // CUR-6: bulk-select state.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = useCallback((id: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const validIds = new Set(items.map((i) => i.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (validIds.has(id)) next.add(id); });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [items]);
 
   const isValidCategory = IOD_CATEGORIES.includes(category);
 
@@ -278,6 +300,8 @@ export default function IoDCategoryPage() {
               item={item}
               onClick={() => setSelectedItem(item)}
               onDelete={handleItemDeleted}
+              isSelected={selectedIds.has(item.id)}
+              onSelectChange={toggleSelect}
             />
           ))}
         </div>
@@ -288,6 +312,25 @@ export default function IoDCategoryPage() {
           onDelete={handleItemDeleted}
         />
       )}
+
+      {/* CUR-6: bulk-action bar. */}
+      <BulkActionBar
+        module="iod"
+        selectedIds={selectedIds}
+        selectedInsuredCount={items.filter((i) => selectedIds.has(i.id) && i.insure).length}
+        totalSelectableCount={items.length}
+        onClearSelection={clearSelection}
+        onSelectAll={() => setSelectedIds(new Set(items.map((i) => i.id)))}
+        onActionComplete={(result) => {
+          if (result.action === "set_insure") {
+            setItems((prev) =>
+              prev.map((it) => (result.ids.includes(it.id) ? { ...it, insure: result.value ?? it.insure } : it)),
+            );
+          } else if (result.action === "archive" || result.action === "delete") {
+            setItems((prev) => prev.filter((it) => !result.ids.includes(it.id)));
+          }
+        }}
+      />
 
       {showImportModal && (
         <IoDCSVImportModal
