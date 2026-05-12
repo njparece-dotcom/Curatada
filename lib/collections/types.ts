@@ -6,6 +6,11 @@ export interface FieldSpec {
   name: string;
   required?: boolean;
   trim?: boolean;
+  // Field type discriminator. Defaults to "string" (current normalize behaviour).
+  // "boolean" bypasses the `value || null` coercion in normalizeField so that
+  // `false` survives the round-trip — critical for the NOT NULL `insure` column
+  // added by CUR-2 (migration 016). Add other types here as needed.
+  type?: "boolean";
 }
 
 export interface CollectionConfig {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AutoItem, AutoImage, ComparableSale, CONDITION_COLORS, AUTO_CATEGORY_LABELS } from "@/lib/types";
 import { useHideValues } from "@/lib/HideValuesContext";
 import EditAutomobileModal from "@/components/EditAutomobileModal";
+import InsuranceValueRow from "@/components/InsuranceValueRow";
 
 interface AutomobileDetailModalProps {
   item: AutoItem;
@@ -400,6 +401,9 @@ export default function AutomobileDetailModal({
                 )}
               </div>
             </div>
+
+            {/* Insurance value (CUR-3) — renders only when item.insure is true. */}
+            <InsuranceValueRow item={item} />
 
             {/* Valuation actions */}
             {valuationStep === "idle" && (

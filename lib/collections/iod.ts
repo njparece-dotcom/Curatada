@@ -21,6 +21,7 @@ export const iodConfig: CollectionConfig = {
     { name: "purchase_source", trim: true },
     { name: "provenance", trim: true },
     { name: "notes", trim: true },
+    { name: "insure", type: "boolean" },
   ],
   conditionRequired: false,
   patchSetUpdatedAt: true,

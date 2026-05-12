@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { GuitarItem, GuitarImage, GuitarValuation, ComparableSale, CONDITION_COLORS, CATEGORY_LABELS } from "@/lib/types";
 import { useHideValues } from "@/lib/HideValuesContext";
 import EditItemModal from "@/components/EditItemModal";
+import InsuranceValueRow from "@/components/InsuranceValueRow";
 
 interface ItemDetailModalProps {
   item: GuitarItem;
@@ -419,6 +420,9 @@ export default function ItemDetailModal({
                 </div>
               </div>
             )}
+
+            {/* Insurance value (CUR-3) — renders only when item.insure is true. */}
+            <InsuranceValueRow item={item} />
 
             {/* AI loading */}
             {valuationStep === "loading" && (

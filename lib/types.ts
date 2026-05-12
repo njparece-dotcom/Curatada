@@ -32,6 +32,26 @@ export type Condition =
   | "Fair"
   | "Poor";
 
+// Source of an item's `insurance_value` field (CUR-2 / CUR-3).
+//   - "ai":                  derived from a fresh AI sale-price valuation × the
+//                            per-category multiplier from `insurance_valuation_norms`.
+//   - "alternate_from_user": derived from the user's `purchase_price` × multiplier
+//                            (lower confidence — used when no AI value exists).
+//   - "user_override":       the user manually entered an insurance value, which
+//                            takes precedence over future auto-computed values.
+export type InsuranceValueSource = "ai" | "alternate_from_user" | "user_override";
+
+// Fields added to every item type by CUR-2 / CUR-3 (Insurance Validation and
+// Paperwork Epic). Composed into GuitarItem, WatchItem, AutoItem, IoDItem
+// below so the shared <InsuranceValueRow> can accept any item.
+export interface InsuranceFields {
+  insure?: boolean;
+  insurance_value?: number | null;
+  insurance_value_source?: InsuranceValueSource | null;
+  insurance_value_date?: string | null;
+  archived_at?: string | null;
+}
+
 export interface GuitarImage {
   id: string;
   guitar_item_id: string;
@@ -45,7 +65,7 @@ export interface GuitarImage {
   created_at: string;
 }
 
-export interface GuitarItem {
+export interface GuitarItem extends InsuranceFields {
   id: string;
   category: GuitarCategory;
   brand: string;
@@ -132,7 +152,7 @@ export interface WatchImage {
   created_at: string;
 }
 
-export interface WatchItem {
+export interface WatchItem extends InsuranceFields {
   id: string;
   category: WatchCategory;
   brand: string;
@@ -281,7 +301,7 @@ export interface AutoImage {
   created_at: string;
 }
 
-export interface AutoItem {
+export interface AutoItem extends InsuranceFields {
   id: string;
   category: AutoCategory;
   brand: string;
@@ -333,7 +353,7 @@ export interface IoDImage {
   created_at: string;
 }
 
-export interface IoDItem {
+export interface IoDItem extends InsuranceFields {
   id: string;
   category: IoDCategory;
   item_type: string | null;

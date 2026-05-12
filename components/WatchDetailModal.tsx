@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { WatchItem, WatchImage, WatchValuation, ComparableSale, CONDITION_COLORS, WATCH_CATEGORY_LABELS } from "@/lib/types";
 import { useHideValues } from "@/lib/HideValuesContext";
 import EditWatchModal from "@/components/EditWatchModal";
+import InsuranceValueRow from "@/components/InsuranceValueRow";
 
 interface WatchDetailModalProps {
   item: WatchItem;
@@ -426,6 +427,9 @@ export default function WatchDetailModal({
                 </div>
               </div>
             )}
+
+            {/* Insurance value (CUR-3) — renders only when item.insure is true. */}
+            <InsuranceValueRow item={item} />
 
             {/* AI loading */}
             {valuationStep === "loading" && (
