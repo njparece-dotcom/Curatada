@@ -161,13 +161,11 @@ export default function WatchCategoryPage() {
 
   const runBatchRevalue = useCallback(() => {
     if (pendingRevalue === 0) return;
-    startRevalue(items, category, (id, price) => {
+    // Patch-style callback (CUR-1 follow-up): the runner sends a partial
+    // ItemPatch per successful item — AI revalue or insurance-only compute.
+    startRevalue(items, category, (id, patch) => {
       setItems((prev) =>
-        prev.map((it) =>
-          it.id === id
-            ? { ...it, latest_ai_price: price, latest_ai_price_date: new Date().toISOString() }
-            : it
-        )
+        prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
       );
     }, "/api/watches");
   }, [items, category, startRevalue, pendingRevalue]);
