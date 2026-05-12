@@ -28,7 +28,7 @@ export async function GET() {
         COALESCE(SUM(lpi.price), 0)::numeric      AS total_value
       FROM guitar_items gi
       LEFT JOIN latest_per_item lpi ON lpi.guitar_item_id = gi.id
-      WHERE gi.user_id = $1
+      WHERE gi.user_id = $1 AND gi.archived_at IS NULL
       GROUP BY gi.category
       ORDER BY gi.category
     `, [userId]);
@@ -46,7 +46,7 @@ export async function GET() {
       SELECT COUNT(DISTINCT gv.guitar_item_id)::int AS count
       FROM guitar_valuations gv
       JOIN guitar_items gi ON gi.id = gv.guitar_item_id
-      WHERE gi.user_id = $1
+      WHERE gi.user_id = $1 AND gi.archived_at IS NULL
     `, [userId]);
     const guitar_valued_items = guitarValuedRows[0]?.count ?? 0;
 
@@ -64,7 +64,7 @@ export async function GET() {
         COALESCE(SUM(lpw.price), 0)::numeric      AS total_value
       FROM watch_items wi
       LEFT JOIN latest_per_watch lpw ON lpw.watch_item_id = wi.id
-      WHERE wi.user_id = $1
+      WHERE wi.user_id = $1 AND wi.archived_at IS NULL
     `, [userId]);
     const watchTotals = watchTotalsRows[0] ?? { total_items: 0, total_value: 0 };
 
@@ -72,7 +72,7 @@ export async function GET() {
       SELECT COUNT(DISTINCT wv.watch_item_id)::int AS count
       FROM watch_valuations wv
       JOIN watch_items wi ON wi.id = wv.watch_item_id
-      WHERE wi.user_id = $1
+      WHERE wi.user_id = $1 AND wi.archived_at IS NULL
     `, [userId]);
     const watch_valued_items = watchValuedRows[0]?.count ?? 0;
 
@@ -90,7 +90,7 @@ export async function GET() {
         COALESCE(SUM(lpa.price), 0)::numeric      AS total_value
       FROM automobiles a
       LEFT JOIN latest_per_auto lpa ON lpa.auto_id = a.id
-      WHERE a.user_id = $1
+      WHERE a.user_id = $1 AND a.archived_at IS NULL
     `, [userId]);
     const autoTotals = autoTotalsRows[0] ?? { total_items: 0, total_value: 0 };
 
@@ -98,7 +98,7 @@ export async function GET() {
       SELECT COUNT(DISTINCT av.auto_id)::int AS count
       FROM auto_valuations av
       JOIN automobiles a ON a.id = av.auto_id
-      WHERE a.user_id = $1
+      WHERE a.user_id = $1 AND a.archived_at IS NULL
     `, [userId]);
     const auto_valued_items = autoValuedRows[0]?.count ?? 0;
 
@@ -116,7 +116,7 @@ export async function GET() {
         COALESCE(SUM(lpi.price), 0)::numeric      AS total_value
       FROM items_of_distinction i
       LEFT JOIN latest_per_iod lpi ON lpi.iod_id = i.id
-      WHERE i.user_id = $1
+      WHERE i.user_id = $1 AND i.archived_at IS NULL
     `, [userId]);
     const iodTotals = iodTotalsRows[0] ?? { total_items: 0, total_value: 0 };
 
@@ -124,7 +124,7 @@ export async function GET() {
       SELECT COUNT(DISTINCT iv.iod_id)::int AS count
       FROM iod_valuations iv
       JOIN items_of_distinction i ON i.id = iv.iod_id
-      WHERE i.user_id = $1
+      WHERE i.user_id = $1 AND i.archived_at IS NULL
     `, [userId]);
     const iod_valued_items = iodValuedRows[0]?.count ?? 0;
 
@@ -173,7 +173,7 @@ export async function GET() {
           WHERE guitar_item_id = gi.id AND valuation_type = 'user'
           ORDER BY created_at DESC LIMIT 1
         ) user_val ON true
-        WHERE gi.user_id = $1
+        WHERE gi.user_id = $1 AND gi.archived_at IS NULL
 
         UNION ALL
 
@@ -206,7 +206,7 @@ export async function GET() {
           WHERE watch_item_id = wi.id AND valuation_type = 'user'
           ORDER BY created_at DESC LIMIT 1
         ) user_val ON true
-        WHERE wi.user_id = $1
+        WHERE wi.user_id = $1 AND wi.archived_at IS NULL
 
         UNION ALL
 
@@ -239,7 +239,7 @@ export async function GET() {
           WHERE auto_id = a.id AND valuation_type = 'user'
           ORDER BY created_at DESC LIMIT 1
         ) user_val ON true
-        WHERE a.user_id = $1
+        WHERE a.user_id = $1 AND a.archived_at IS NULL
 
         UNION ALL
 
@@ -272,7 +272,7 @@ export async function GET() {
           WHERE iod_id = i.id AND valuation_type = 'user'
           ORDER BY created_at DESC LIMIT 1
         ) user_val ON true
-        WHERE i.user_id = $1
+        WHERE i.user_id = $1 AND i.archived_at IS NULL
       ) combined
       ORDER BY created_at DESC
       LIMIT 1
@@ -295,7 +295,7 @@ export async function GET() {
           'Added to collection · ' || gi.category       AS subtitle,
           gi.purchase_price                              AS value
         FROM guitar_items gi
-        WHERE gi.user_id = $1
+        WHERE gi.user_id = $1 AND gi.archived_at IS NULL
         ORDER BY gi.created_at DESC
         LIMIT 8
       )
@@ -312,7 +312,7 @@ export async function GET() {
           gv.price                                       AS value
         FROM guitar_valuations gv
         JOIN guitar_items gi ON gi.id = gv.guitar_item_id
-        WHERE gi.user_id = $1
+        WHERE gi.user_id = $1 AND gi.archived_at IS NULL
         ORDER BY gv.created_at DESC
         LIMIT 8
       )
@@ -325,7 +325,7 @@ export async function GET() {
           'Added to watches · ' || wi.category          AS subtitle,
           wi.purchase_price                              AS value
         FROM watch_items wi
-        WHERE wi.user_id = $1
+        WHERE wi.user_id = $1 AND wi.archived_at IS NULL
         ORDER BY wi.created_at DESC
         LIMIT 8
       )
@@ -342,7 +342,7 @@ export async function GET() {
           wv.price                                       AS value
         FROM watch_valuations wv
         JOIN watch_items wi ON wi.id = wv.watch_item_id
-        WHERE wi.user_id = $1
+        WHERE wi.user_id = $1 AND wi.archived_at IS NULL
         ORDER BY wv.created_at DESC
         LIMIT 8
       )
@@ -355,7 +355,7 @@ export async function GET() {
           'Added to automobiles · ' || a.category       AS subtitle,
           a.purchase_price                               AS value
         FROM automobiles a
-        WHERE a.user_id = $1
+        WHERE a.user_id = $1 AND a.archived_at IS NULL
         ORDER BY a.created_at DESC
         LIMIT 8
       )
@@ -372,7 +372,7 @@ export async function GET() {
           av.price                                       AS value
         FROM auto_valuations av
         JOIN automobiles a ON a.id = av.auto_id
-        WHERE a.user_id = $1
+        WHERE a.user_id = $1 AND a.archived_at IS NULL
         ORDER BY av.created_at DESC
         LIMIT 8
       )
@@ -385,7 +385,7 @@ export async function GET() {
           'Added to collectibles · ' || i.category AS subtitle,
           i.purchase_price                               AS value
         FROM items_of_distinction i
-        WHERE i.user_id = $1
+        WHERE i.user_id = $1 AND i.archived_at IS NULL
         ORDER BY i.created_at DESC
         LIMIT 8
       )
@@ -402,7 +402,7 @@ export async function GET() {
           iv.price                                       AS value
         FROM iod_valuations iv
         JOIN items_of_distinction i ON i.id = iv.iod_id
-        WHERE i.user_id = $1
+        WHERE i.user_id = $1 AND i.archived_at IS NULL
         ORDER BY iv.created_at DESC
         LIMIT 8
       )
@@ -415,19 +415,19 @@ export async function GET() {
       SELECT path FROM (
         (SELECT gi_img.path FROM guitar_images gi_img
          JOIN guitar_items gi ON gi.id = gi_img.guitar_item_id
-         WHERE gi.user_id = $1 ORDER BY RANDOM() LIMIT 3)
+         WHERE gi.user_id = $1 AND gi.archived_at IS NULL ORDER BY RANDOM() LIMIT 3)
         UNION ALL
         (SELECT wi_img.path FROM watch_images wi_img
          JOIN watch_items wi ON wi.id = wi_img.watch_item_id
-         WHERE wi.user_id = $1 ORDER BY RANDOM() LIMIT 3)
+         WHERE wi.user_id = $1 AND wi.archived_at IS NULL ORDER BY RANDOM() LIMIT 3)
         UNION ALL
         (SELECT ai_img.path FROM auto_images ai_img
          JOIN automobiles a ON a.id = ai_img.auto_id
-         WHERE a.user_id = $1 ORDER BY RANDOM() LIMIT 3)
+         WHERE a.user_id = $1 AND a.archived_at IS NULL ORDER BY RANDOM() LIMIT 3)
         UNION ALL
         (SELECT iod_img.path FROM iod_images iod_img
          JOIN items_of_distinction i ON i.id = iod_img.iod_id
-         WHERE i.user_id = $1 ORDER BY RANDOM() LIMIT 3)
+         WHERE i.user_id = $1 AND i.archived_at IS NULL ORDER BY RANDOM() LIMIT 3)
       ) combined
       ORDER BY RANDOM()
       LIMIT 5
