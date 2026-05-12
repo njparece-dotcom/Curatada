@@ -15,7 +15,7 @@ import IoDDetailModal from "@/components/IoDDetailModal";
 import IoDValuationPromptModal from "@/components/IoDValuationPromptModal";
 import IoDCSVImportModal from "@/components/IoDCSVImportModal";
 import BulkActionBar from "@/components/BulkActionBar";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 type SortField = string;
 type SortDir = "asc" | "desc";
@@ -88,6 +88,8 @@ export default function IoDCategoryPage() {
       let cmp = 0;
       if (sortBy === "date") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      } else if (sortBy === "brand") {
+        cmp = compareBrandThenYear(a, b);
       } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {

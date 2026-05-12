@@ -5,7 +5,7 @@ import Link from "next/link";
 import { GuitarItem, GuitarCategory, CATEGORY_LABELS, GUITAR_CATEGORIES, CONDITION_COLORS } from "@/lib/types";
 import ItemDetailModal from "@/components/ItemDetailModal";
 import SortableHeader from "@/components/forms/SortableHeader";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 const fmt = (price: number | null | undefined) => {
   if (price == null) return "—";
@@ -53,8 +53,10 @@ export default function GuitarsPage() {
 
   // Sort state — shared across all category sections on this page. Clicking
   // a header in any section re-sorts every section the same way.
-  const [sortBy, setSortBy] = useState<string>("year");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Default: Brand ASC with Year ASC as a within-brand tiebreak. See the
+  // "brand" branch in sortedItems below + compareBrandThenYear helper.
+  const [sortBy, setSortBy] = useState<string>("brand");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const toggleSort = useCallback((field: string) => {
     setSortBy((prev) => {
@@ -74,7 +76,10 @@ export default function GuitarsPage() {
     const copy = [...allItems];
     copy.sort((a, b) => {
       let cmp = 0;
-      if (sortBy === "value") {
+      if (sortBy === "brand") {
+        // Brand asc with Year asc as a within-brand tiebreak.
+        cmp = compareBrandThenYear(a, b);
+      } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {
         cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);

@@ -29,17 +29,34 @@ export function compareValues(a: unknown, b: unknown): number {
   }
 
   if (typeof a === "string" && typeof b === "string") {
-    // Detect ISO-ish date strings cheaply: a 'T' or trailing 'Z' is a strong
-    // hint that this is a timestamp. Otherwise locale-compare as plain text.
+    // Numeric strings come first — NUMERIC columns from pg arrive as strings
+    // ("1050.00", "300.00"). Without this guard, locale-compare would sort
+    // them lexicographically ("$1,050" before "$300" because "1" < "3").
+    // Trim guards a corner case: Number("") is 0, which would falsely sort
+    // empty strings as numerically equivalent to "0". The leading
+    // null/empty check up top already filters those, but being explicit
+    // here is defensive against future callers.
+    const aTrim = a.trim();
+    const bTrim = b.trim();
+    if (aTrim !== "" && bTrim !== "") {
+      const aNum = Number(aTrim);
+      const bNum = Number(bTrim);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+    }
+
+    // Date strings: a YYYY-MM-DD prefix is a strong signal this is a
+    // timestamp, parse and compare chronologically.
     if (/^\d{4}-\d{2}-\d{2}/.test(a) && /^\d{4}-\d{2}-\d{2}/.test(b)) {
       const aDate = Date.parse(a);
       const bDate = Date.parse(b);
       if (!isNaN(aDate) && !isNaN(bDate)) return aDate - bDate;
     }
+
     return a.localeCompare(b);
   }
 
-  // Numeric strings (NUMERIC from pg can arrive as a string) — coerce.
+  // Last-resort numeric coercion for any other shape (e.g. one side is a
+  // number-string and the other is a boolean).
   const aNum = Number(a);
   const bNum = Number(b);
   if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
@@ -75,4 +92,21 @@ export function bestPriceOf(item: {
   purchase_price?: number | null;
 }): number {
   return Number(item.latest_ai_price ?? item.latest_user_price ?? item.purchase_price ?? 0);
+}
+
+/**
+ * Compare by Brand with Year as a secondary tiebreak. Used by every page's
+ * sortBy === "brand" branch so within-brand ordering is chronological rather
+ * than insertion-order-dependent. Year tiebreak is ascending regardless of
+ * the page-level sortDir — the direction flip happens at the top level via
+ * `sortDir === "asc" ? cmp : -cmp`. Equal-brand items will reverse correctly
+ * with the rest of the list when the user clicks Brand a second time.
+ */
+export function compareBrandThenYear(
+  a: { brand?: string | null; year?: number | null },
+  b: { brand?: string | null; year?: number | null },
+): number {
+  const brandCmp = compareValues(a.brand, b.brand);
+  if (brandCmp !== 0) return brandCmp;
+  return compareValues(a.year, b.year);
 }

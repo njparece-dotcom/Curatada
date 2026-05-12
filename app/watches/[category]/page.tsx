@@ -16,7 +16,7 @@ import WatchValuationPromptModal from "@/components/WatchValuationPromptModal";
 import WatchCSVImportModal from "@/components/WatchCSVImportModal";
 import BulkActionBar from "@/components/BulkActionBar";
 import { useRevalue, needsRevalue } from "@/lib/RevalueContext";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 // SortField is loose `string` so the SortableHeader callback can hand us
 // any of the WatchListView column keys without a type-juggle. Comparator
@@ -95,6 +95,8 @@ export default function WatchCategoryPage() {
       let cmp = 0;
       if (sortBy === "date") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      } else if (sortBy === "brand") {
+        cmp = compareBrandThenYear(a, b);
       } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {

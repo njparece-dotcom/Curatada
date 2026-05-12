@@ -16,7 +16,7 @@ import ValuationPromptModal from "@/components/ValuationPromptModal";
 import CSVImportModal from "@/components/CSVImportModal";
 import BulkActionBar from "@/components/BulkActionBar";
 import { useRevalue, needsRevalue } from "@/lib/RevalueContext";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 // SortField covers both the existing toolbar buttons (date / brand / value)
 // and the per-column keys used by SortableHeader in the list-view table.
@@ -100,6 +100,8 @@ export default function CategoryPage() {
       let cmp = 0;
       if (sortBy === "date") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      } else if (sortBy === "brand") {
+        cmp = compareBrandThenYear(a, b);
       } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {
@@ -108,7 +110,7 @@ export default function CategoryPage() {
         cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
       } else {
         // Generic field lookup — handles every other column key from the
-        // GuitarListView COLUMNS array (year, brand, model, color_finish,
+        // GuitarListView COLUMNS array (year, model, color_finish,
         // short_description, purchase_price, latest_ai_price,
         // latest_user_price, insurance_value, etc.).
         cmp = compareValues(
