@@ -131,7 +131,7 @@ function InsurancePDFDoc({ data }: { data: InsuranceScheduleData }) {
   for (const item of data.items) grouped[item.module].push(item);
 
   return (
-    <Document title={`Insurance Schedule — ${data.user.name ?? data.user.email ?? "Curatada"}`}>
+    <Document title={`Insurance Schedule — ${data.user.name ?? data.user.email ?? "Vault 1"}`}>
       <Page size="LETTER" style={styles.page} wrap>
         {/* Header */}
         <View style={styles.header}>

@@ -35,7 +35,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="font-headline text-2xl font-bold text-accent tracking-widest uppercase">
-            Curatada
+            Vault 1
           </h1>
           <p className="text-text-dim text-sm mt-1">Obsession, Curated</p>
         </div>

@@ -53,7 +53,7 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
       a.href     = url;
-      a.download = `curatada-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `vault1-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -104,7 +104,7 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
         setImportStep("preview");
       }
     } catch {
-      setParseError("Could not parse file. Make sure it is a valid Curatada JSON export.");
+      setParseError("Could not parse file. Make sure it is a valid Vault 1 JSON export.");
       setFileData(null);
     } finally {
       setValidating(false);
@@ -290,7 +290,7 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
               {importStep === "select" && (
                 <>
                   <p className="text-sm text-text-muted">
-                    Upload a Curatada JSON export file. Records that already exist (matching ID) will be skipped.
+                    Upload a Vault 1 JSON export file. Records that already exist (matching ID) will be skipped.
                   </p>
 
                   {/* Drop zone */}
@@ -311,7 +311,7 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
                     <p className="text-sm font-medium text-text mb-1">
                       {dragOver ? "Drop to upload" : "Drop file here or click to browse"}
                     </p>
-                    <p className="text-xs text-text-dim">Supports .json files exported from Curatada</p>
+                    <p className="text-xs text-text-dim">Supports .json files exported from Vault 1 (or legacy Curatada exports)</p>
                     <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={onFileChange} />
                   </div>
 

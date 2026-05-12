@@ -358,7 +358,7 @@ export default function CSVImportModal({ defaultCategory, onClose, onImportCompl
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "curatada_import_template.csv";
+    a.download = "vault1_import_template.csv";
     a.click();
     URL.revokeObjectURL(url);
   };

@@ -4,7 +4,7 @@ import SessionProvider from "@/components/SessionProvider";
 import ConditionalAppShell from "@/components/ConditionalAppShell";
 
 export const metadata: Metadata = {
-  title: "Curatada",
+  title: "Vault 1",
   description: "Track your collectibles — Guitars, Watches, and more.",
 };
 

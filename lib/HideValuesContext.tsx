@@ -19,7 +19,13 @@ const HideValuesContext = createContext<HideValuesContextValue>({
   setHideValues: () => {},
 });
 
-const STORAGE_KEY = "curatada:hide-values";
+const STORAGE_KEY = "vault1:hide-values";
+// One-shot migration: the localStorage key changed when the app was
+// rebranded from Curatada to Vault 1. Read the old key on first mount and
+// carry the value forward so users don't lose their hide-values preference.
+// Safe to delete this constant + migration block once a few weeks have
+// passed and existing users have rolled over.
+const LEGACY_STORAGE_KEY = "curatada:hide-values";
 
 export function HideValuesProvider({ children }: { children: ReactNode }) {
   // Default to false until we read from localStorage. The first paint may
@@ -30,7 +36,16 @@ export function HideValuesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       if (typeof window === "undefined") return;
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      let stored = window.localStorage.getItem(STORAGE_KEY);
+      // Rebrand migration: carry forward the old key's value once.
+      if (stored == null) {
+        const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacy != null) {
+          window.localStorage.setItem(STORAGE_KEY, legacy);
+          window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+          stored = legacy;
+        }
+      }
       if (stored === "1") setHideValuesState(true);
     } catch {
       // localStorage can throw in private modes etc; ignore

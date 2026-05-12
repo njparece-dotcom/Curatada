@@ -354,7 +354,7 @@ export async function POST(req: NextRequest) {
 
     if (!body || !VALID_VERSIONS.includes(body.version) || !body.collections || typeof body.collections !== "object") {
       return NextResponse.json(
-        { error: `Invalid file format. Expected a Curatada export with version ${VALID_VERSIONS.map((v) => `'${v}'`).join(" or ")}.` },
+        { error: `Invalid file format. Expected a Vault 1 export (or legacy Curatada export) with version ${VALID_VERSIONS.map((v) => `'${v}'`).join(" or ")}.` },
         { status: 400 },
       );
     }
@@ -448,7 +448,7 @@ export async function PUT(req: NextRequest) {
 
     if (!body || !VALID_VERSIONS.includes(body.version) || !body.collections || typeof body.collections !== "object") {
       return NextResponse.json(
-        { error: `Invalid file format. Expected a Curatada export with version ${VALID_VERSIONS.map((v) => `'${v}'`).join(" or ")}.` },
+        { error: `Invalid file format. Expected a Vault 1 export (or legacy Curatada export) with version ${VALID_VERSIONS.map((v) => `'${v}'`).join(" or ")}.` },
         { status: 400 },
       );
     }

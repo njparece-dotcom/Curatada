@@ -1,9 +1,20 @@
-# Curatada (Quallection)
+# Vault 1 (formerly Curatada / Quallection)
 
 Personal "vault" for tracking high-end collections — guitars, watches, automobiles,
 items of distinction ("iod" / collectibles). Next.js 15 App Router (React 19) +
 Postgres + NextAuth (JWT, multi-provider) + Tailwind. Deployed on Railway in
-production; local dev runs against a docker-compose Postgres.
+production at [vault1.co](https://vault1.co); local dev runs against a
+docker-compose Postgres.
+
+**Note on the rename:** The app was rebranded "Curatada → Vault 1" with the
+new production domain `vault1.co`. The codename `Quallection` survives in
+the local docker-compose service names, the `package.json` `name` field,
+and various internal identifiers (`/spaces/Curatada/...` Confluence URLs,
+`cur-web` repo name, `CUR` Jira project key) — those are deferred follow-ups
+since they each carry meaningful ripple effects. `lib/mgmt/envelope.ts`
+`APP_SLUG = "curatada"` also stays for now; it's the cross-app management
+API contract identifier and changing it requires a coordinated update on
+the consuming dashboard side.
 
 ## Run
 
@@ -40,7 +51,7 @@ Required env vars on the app service (in addition to platform-injected `PORT`):
 |---|---|
 | `DATABASE_URL` | Reference variable from the Postgres plugin: `${{Postgres.DATABASE_URL}}` |
 | `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
-| `NEXTAUTH_URL` | **Public** Railway URL, e.g. `https://curatada-production.up.railway.app` — NextAuth callbacks 500 silently if this is wrong |
+| `NEXTAUTH_URL` | **Public** URL — now `https://vault1.co` (was `https://curatada-production.up.railway.app` pre-rebrand; the old hostname still resolves but the env var should track the canonical brand domain). NextAuth callbacks 500 silently if this is wrong. |
 | `ANTHROPIC_API_KEY` | For valuations and pursuit search |
 | `CRON_SECRET` | Optional; only needed if running a sibling cron service to hit `/api/pursuits/run-search` |
 | `MGMT_API_TOKEN` | Bearer token for the cross-app dashboard's `/api/mgmt/v1/*` calls. Without it, the mgmt API returns 503. |
