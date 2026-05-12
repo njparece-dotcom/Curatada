@@ -3,16 +3,7 @@
 import { WatchItem, CONDITION_COLORS } from "@/lib/types";
 import { useHideValues } from "@/lib/HideValuesContext";
 import SelectionCheckbox from "@/components/SelectionCheckbox";
-
-interface WatchListViewProps {
-  items: WatchItem[];
-  onItemClick: (item: WatchItem) => void;
-  onDelete: (id: string) => void;
-  // Bulk-select props (optional — checkbox column hides when omitted).
-  selectedIds?: Set<string>;
-  onSelectChange?: (id: string, selected: boolean) => void;
-  onSelectAllToggle?: () => void;
-}
+import SortableHeader from "@/components/forms/SortableHeader";
 
 const fmtRaw = (price: number | null | undefined) => {
   if (price == null) return "—";
@@ -24,23 +15,35 @@ const fmtRaw = (price: number | null | undefined) => {
   }).format(Number(price));
 };
 
-const COLUMNS = [
-  "Year",
-  "Brand",
-  "Model",
-  "Dial Color",
-  "Movement",
-  "Case Material",
-  "Bracelet",
-  "Condition",
-  "Short Description",
-  "Buy Cost",
-  "AI Est.",
-  "My Value",
-  "Insured",
-  "Insured Value",
-  "Open to Sell",
+const COLUMNS: { label: string; field?: string; align?: "left" | "right" }[] = [
+  { label: "Year", field: "year" },
+  { label: "Brand", field: "brand" },
+  { label: "Model", field: "model" },
+  { label: "Dial Color", field: "dial_color" },
+  { label: "Movement", field: "movement" },
+  { label: "Case Material", field: "case_material" },
+  { label: "Bracelet", field: "bracelet_material" },
+  { label: "Condition", field: "condition" },
+  { label: "Short Description", field: "short_description" },
+  { label: "Buy Cost", field: "purchase_price" },
+  { label: "AI Est.", field: "latest_ai_price" },
+  { label: "My Value", field: "latest_user_price" },
+  { label: "Insured", field: "insure" },
+  { label: "Insured Value", field: "insurance_value" },
+  { label: "Open to Sell" },
 ];
+
+interface WatchListViewProps {
+  items: WatchItem[];
+  onItemClick: (item: WatchItem) => void;
+  onDelete: (id: string) => void;
+  selectedIds?: Set<string>;
+  onSelectChange?: (id: string, selected: boolean) => void;
+  onSelectAllToggle?: () => void;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+  onSortToggle?: (field: string) => void;
+}
 
 export default function WatchListView({
   items,
@@ -48,6 +51,9 @@ export default function WatchListView({
   selectedIds,
   onSelectChange,
   onSelectAllToggle,
+  sortBy,
+  sortDir,
+  onSortToggle,
 }: WatchListViewProps) {
   const { hideValues } = useHideValues();
   const fmt = (price: number | null | undefined) => hideValues ? "$•••" : fmtRaw(price);
@@ -68,12 +74,15 @@ export default function WatchListView({
               </th>
             )}
             {COLUMNS.map((col) => (
-              <th
-                key={col}
-                className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3 whitespace-nowrap"
-              >
-                {col}
-              </th>
+              <SortableHeader
+                key={col.label}
+                label={col.label}
+                field={onSortToggle ? col.field : undefined}
+                currentSort={sortBy ?? ""}
+                currentDir={sortDir ?? "desc"}
+                onToggle={onSortToggle ?? (() => {})}
+                align={col.align}
+              />
             ))}
           </tr>
         </thead>

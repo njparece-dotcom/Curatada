@@ -15,10 +15,15 @@ import IoDDetailModal from "@/components/IoDDetailModal";
 import IoDValuationPromptModal from "@/components/IoDValuationPromptModal";
 import IoDCSVImportModal from "@/components/IoDCSVImportModal";
 import BulkActionBar from "@/components/BulkActionBar";
+import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
 
-type SortField = "date" | "brand" | "value";
+type SortField = string;
 type SortDir = "asc" | "desc";
 type ViewMode = "tiles" | "list";
+
+const DEFAULT_ASC_FIELDS = new Set([
+  "brand", "short_description", "item_type", "category", "condition",
+]);
 
 export default function IoDCategoryPage() {
   const params = useParams();
@@ -83,26 +88,33 @@ export default function IoDCategoryPage() {
       let cmp = 0;
       if (sortBy === "date") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else if (sortBy === "brand") {
-        cmp = (a.brand || "").localeCompare(b.brand || "");
       } else if (sortBy === "value") {
-        const aVal = Number(a.latest_ai_price ?? a.latest_user_price ?? a.purchase_price ?? 0);
-        const bVal = Number(b.latest_ai_price ?? b.latest_user_price ?? b.purchase_price ?? 0);
-        cmp = aVal - bVal;
+        cmp = bestPriceOf(a) - bestPriceOf(b);
+      } else if (sortBy === "condition") {
+        cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
+      } else if (sortBy === "insure") {
+        cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
+      } else {
+        cmp = compareValues(
+          (a as unknown as Record<string, unknown>)[sortBy],
+          (b as unknown as Record<string, unknown>)[sortBy],
+        );
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
   }, [items, sortBy, sortDir]);
 
-  const toggleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortBy(field);
-      setSortDir(field === "brand" ? "asc" : "desc");
-    }
-  };
+  const toggleSort = useCallback((field: SortField) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(DEFAULT_ASC_FIELDS.has(field) ? "asc" : "desc");
+      return field;
+    });
+  }, []);
 
   const handleItemAdded = useCallback((newItem: IoDItem, offerValuation?: boolean) => {
     setItems((prev) => [newItem, ...prev]);
@@ -316,6 +328,9 @@ export default function IoDCategoryPage() {
             if (selectedIds.size === items.length && items.length > 0) clearSelection();
             else setSelectedIds(new Set(items.map((i) => i.id)));
           }}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSortToggle={toggleSort}
         />
       )}
 
