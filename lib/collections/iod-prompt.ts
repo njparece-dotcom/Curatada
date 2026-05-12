@@ -48,3 +48,44 @@ After researching, respond with ONLY valid JSON (no markdown, no explanation) in
 
 Include 3-5 comparable listings total.`;
 }
+
+// ── Insurance norms prompt (CUR-4) ───────────────────────────────────────────
+//
+// Items of Distinction span the widest range. Fine art insurance typically
+// agrees a value at appraised retail (auction estimate × commission + tax),
+// which often runs significantly above resale. Jewelry carriers (Jewelers
+// Mutual, Chubb) typically agree values 1.2-1.5× retail.
+
+export function iodInsuranceNormsPrompt(categories: string[]): string {
+  const categoriesJSON = JSON.stringify(categories);
+  return `You are an insurance valuation expert specializing in fine art, jewelry, memorabilia, and collectible insurance. For each category below, research the typical multiplier that an insurance scheduled value bears relative to the current open-market resale price.
+
+Categories to research (use the exact slug strings in your response): ${categoriesJSON}
+
+Context for each category:
+- "fine-art": paintings, sculpture, prints, works on paper. Carriers typically agree at appraised retail (auction estimate + buyer's premium + tax + acquisition friction). Multipliers often 1.2-1.8×.
+- "memorabilia": sports, music, historical artifacts. Authentication adds premium; rarity drives spread. Multipliers ~1.1-1.5×.
+- "collectibles": coins, stamps, comics, toys, etc. PCGS/CGC/PSA grading sets a retail baseline. Multipliers ~1.1-1.4×.
+- "jewelry": precious metals + stones. Retail replacement on jewelry typically runs 1.5-2.5× resale because resale is fire-sale (gold weight + stone wholesale) while replacement is retail. Multipliers often 1.5-2.0×.
+- "other": miscellaneous. Use a conservative middle-range multiplier ~1.2.
+
+For each category, derive a single multiplier (decimal, typically 1.0-2.0).
+
+Considerations:
+- Jewelry has the largest spread (replacement at retail vs. resale at melt + wholesale).
+- Fine art carriers (AXA Art, Chubb, Berkley Asset Protection, Distinguished) use appraisal-based agreed values.
+- Use web_search to find recent (last 2 years) carrier or appraiser guidance.
+
+Respond with ONLY valid JSON:
+{
+  "norms": [
+    {
+      "category": "<one of the categories above, verbatim>",
+      "multiplier": <decimal, typically 1.0-2.0>,
+      "notes": "<1-2 sentences citing the source or industry practice>"
+    }
+  ]
+}
+
+Include one entry per category. Omit any you cannot justify.`;
+}
