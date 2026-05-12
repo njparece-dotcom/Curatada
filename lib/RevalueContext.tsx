@@ -4,11 +4,32 @@ import { createContext, useContext, useState, useCallback, useRef, ReactNode } f
 import type { InsuranceValueSource } from "@/lib/types";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-// Minimum gap between API calls to stay under 30k tokens/min rate limit.
-// Conservative — applies whether the item needs a fresh AI valuation
-// (~20k tokens) or just an insurance-value compute (norm research is
-// cheaper but still uses Anthropic).
-const INTER_ITEM_DELAY_MS = 8000;
+
+// Inter-item delay. Differentiated by action type:
+//
+//   AI revalue (POST /value)     — hits Anthropic Haiku 4.5 with web_search
+//                                   (max_tokens=1500, max_uses=2). Per-call
+//                                   token usage ~3-8k input + up to 1500
+//                                   output. 4s cadence ≈ 15 calls/min ≈
+//                                   ~22.5k OTPM max — safe at Tier 2 +
+//                                   above; Tier 1 may hit OTPM but the
+//                                   /value route's own callWithRetry
+//                                   handles 429s with retry-after.
+//
+//   Insurance-only (POST /insurance-value) — pure DB UPDATE in the common
+//                                   case (norm cached). Only hits Anthropic
+//                                   when the (module, category) norm is
+//                                   stale, which happens at most once per
+//                                   90 days per category. 1.5s cadence is
+//                                   plenty.
+//
+// Both were originally 8s; the conservative single value dated back to a
+// Sonnet-era assumption about 30k tokens/min. Haiku has substantially
+// higher rate limits and the per-call retry-on-429 backstop means client-
+// side throttling is mostly defensive.
+const INTER_ITEM_DELAY_AI_MS = 4000;
+const INTER_ITEM_DELAY_INSURANCE_MS = 1500;
+
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface CollectionItem {
@@ -142,25 +163,27 @@ export function RevalueProvider({ children }: { children: ReactNode }) {
         const item = queue[i];
         const name = [item.year, item.brand, item.model].filter(Boolean).join(" ");
 
-        // Space out API calls to avoid rate limiting. We apply the same
-        // delay whether the item is going through /value or /insurance-value
-        // — both can ultimately hit Anthropic (the latter via on-demand
-        // norm research), and the 8s gap is the rate-limit-safe baseline.
+        // Per-item action: AI revalue takes priority over insurance-only
+        // (a fresh AI valuation auto-computes insurance as a side-effect
+        // via CUR-5, so it covers both cases in one call).
+        const action: "ai_revalue" | "insurance_only" = needsAiRevalue(item)
+          ? "ai_revalue"
+          : "insurance_only";
+
+        // Per-action delay — see the constants above for the math.
+        const delay =
+          action === "ai_revalue"
+            ? INTER_ITEM_DELAY_AI_MS
+            : INTER_ITEM_DELAY_INSURANCE_MS;
+
         if (apiCallCount > 0) {
           setState((prev) =>
             prev ? { ...prev, current: `Waiting to avoid rate limit…` } : prev,
           );
-          await sleep(INTER_ITEM_DELAY_MS);
+          await sleep(delay);
         }
 
         if (abortRef.current) break;
-
-        // Per-item action: AI revalue takes priority over insurance-only
-        // (since a fresh AI valuation will auto-compute insurance as a
-        // side-effect via CUR-5).
-        const action: "ai_revalue" | "insurance_only" = needsAiRevalue(item)
-          ? "ai_revalue"
-          : "insurance_only";
 
         const labelPrefix = action === "ai_revalue" ? "" : "Insurance only: ";
 
