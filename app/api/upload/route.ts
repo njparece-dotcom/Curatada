@@ -5,6 +5,7 @@ import fs from "fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { authOptions } from "@/lib/auth";
 import { r2IsConfigured, r2PutObject } from "@/lib/storage/r2";
+import { classifyImage } from "@/lib/moderation/nsfw";
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -44,6 +45,14 @@ export async function POST(request: NextRequest) {
       path: string;
       mime_type: string;
       size: number;
+      // Tier-1 moderation metadata. The caller passes these straight through
+      // to the *_images INSERT (see insertImagePaths in lib/collection-handler.ts).
+      // 'unreviewed' would only appear here if classification failed entirely
+      // — the moderation lib fails open to 'flagged', but a stricter caller
+      // could choose to treat null verdicts as 'unreviewed'.
+      moderation_status: "clean" | "flagged";
+      nsfw_score: number;
+      nsfw_categories: { className: string; probability: number }[];
     }[] = [];
 
     for (const file of files) {
@@ -65,6 +74,21 @@ export async function POST(request: NextRequest) {
       const filename = `${uuidv4()}.${ext}`;
       const buffer = Buffer.from(await file.arrayBuffer());
 
+      // Tier-1 content moderation. Classify BEFORE writing to storage so a
+      // hard-block leaves no orphan object in R2. The classifier fails open
+      // (returns 'flagged' on error) so transient model issues don't break
+      // uploads — they just over-flag for the upcoming admin review queue.
+      const verdict = await classifyImage(buffer);
+      if (verdict.hardBlocked) {
+        return NextResponse.json(
+          {
+            error:
+              "This image was rejected by our content filter. If you believe this is a mistake, please contact support.",
+          },
+          { status: 400 }
+        );
+      }
+
       if (useR2) {
         await r2PutObject(filename, buffer, file.type);
       } else {
@@ -77,6 +101,12 @@ export async function POST(request: NextRequest) {
         path: `/uploads/${filename}`,
         mime_type: file.type,
         size: file.size,
+        // verdict.status is 'clean' | 'flagged' here (hardBlocked already
+        // returned above), so the narrowed type matches the DB column's
+        // CHECK constraint subset.
+        moderation_status: verdict.status as "clean" | "flagged",
+        nsfw_score: verdict.nsfw_score,
+        nsfw_categories: verdict.categories,
       });
     }
 

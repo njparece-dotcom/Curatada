@@ -21,7 +21,15 @@ const nextConfig = {
     ],
   },
   // Renamed in Next 15: experimental.serverComponentsExternalPackages -> serverExternalPackages.
-  serverExternalPackages: ["pg"],
+  //
+  // - `pg`: native Postgres driver. Bundling breaks the cnative addon path.
+  // - `@tensorflow/tfjs` + `nsfwjs`: webpack chokes minifying the TF.js
+  //   bundle (`WebpackError is not a constructor` from minify-webpack-plugin).
+  //   These are server-only (imported from lib/moderation/nsfw.ts which is
+  //   only reached via API routes), so externalising them is safe and
+  //   produces a smaller build.
+  // - `sharp`: native libvips addon — must not be bundled.
+  serverExternalPackages: ["pg", "@tensorflow/tfjs", "nsfwjs", "sharp"],
 };
 
 export default nextConfig;

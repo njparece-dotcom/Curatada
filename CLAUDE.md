@@ -171,6 +171,36 @@ objects.
 - **`claimOrphanedData` in `lib/auth.ts`** assigns every orphan row to the
   first OAuth user that signs in. Disable before opening signups.
 
+- **Image moderation runs in-process at upload time.** `lib/moderation/nsfw.ts`
+  loads NSFW.js (MobileNetV2 via `@tensorflow/tfjs`, pure-JS) on first call
+  and caches the model on `globalThis` — same singleton pattern as `pg.Pool`.
+  `/api/upload` classifies every buffer before writing to storage: scores
+  >= 0.95 are hard-rejected (the file never lands in R2/disk and no row is
+  inserted); 0.5–0.95 land as `moderation_status='flagged'`; below 0.5 as
+  `'clean'`. The verdict is returned in the upload response payload and the
+  caller plumbs it into the `*_images` INSERT via `insertImagePaths` in
+  `lib/collection-handler.ts`. The classifier fails open (returns `'flagged'`
+  with score 0) on model errors so a broken model doesn't block uploads.
+  Migration 017 added `moderation_status`, `nsfw_score`, `nsfw_categories`
+  to all four image tables; legacy rows default to `'unreviewed'`.
+
+  **Why pure-JS tfjs, not tfjs-node:** `@tensorflow/tfjs-node` ships native
+  bindings targeting glibc, and our container is `node:20-alpine` (musl).
+  Even with `libc6-compat` the install is fragile. Pure-JS tfjs has no
+  native deps and the latency (~500ms–1s per classify on CPU) is fine for
+  upload-time checks — the user is already waiting on the R2 PUT anyway.
+  We use `sharp` (libvips with prebuilt musl binaries) to decode buffers
+  into the 224×224 RGB pixels the model wants.
+
+  **What NSFW.js does NOT catch:** it only classifies sexual content
+  (Porn / Sexy / Hentai / Drawing / Neutral). No violence, gore, weapons,
+  hate symbols, or other policy categories. A Tier-2 Claude vision pass is
+  planned for when an image enters a public gallery — that will revisit
+  `flagged` rows and either `approve` or `block` them. The
+  `moderation_status` column already includes `'approved'` and `'blocked'`
+  values for that pipeline. Public gallery + admin review queue are not
+  yet built.
+
 - **Railway build phase has no `DATABASE_URL`.** `lib/db.ts` lazy-inits, so
   importing it doesn't throw during `next build`'s page-data collection.
   Don't reintroduce module-level Pool construction or the build breaks.
@@ -272,6 +302,13 @@ curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
   for dev. Image rows from before this still 404 (files never persisted
   on the old Railway disk anyway); re-upload as needed. Follow-up:
   add image rows back to the export/import roundtrip.
+- **Image moderation Tier-1** (NSFW.js at upload time) — done. Migration
+  017 added moderation columns to all four image tables;
+  `lib/moderation/nsfw.ts` classifies every upload; `/api/upload`
+  hard-rejects at score >= 0.95 and tags 0.5–0.95 as `flagged`. See the
+  "Image moderation runs in-process" Gotcha above. **Tier-2 deferred:**
+  Claude vision pass on `flagged`/`unreviewed` rows at gallery-publish
+  time, gated by the (not-yet-built) public gallery feature.
 - **CI gate for auto-merge** — not done. `gh pr merge --auto` is enabled
   on the repo but with no required status check it merges immediately.
   ~30 lines of GitHub Actions YAML (`tsc --noEmit` + `next build`) plus
