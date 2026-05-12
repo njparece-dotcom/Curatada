@@ -76,10 +76,28 @@ export async function POST(req: NextRequest) {
       result.collectibles = await withValuations(items, "iod_valuations", "iod_id");
     }
 
+    // CUR-9: include insurance_valuation_norms as a top-level export key so
+    // a roundtrip rehydrates a fresh DB with the same norm table (saving
+    // the ~$1 + a minute of Anthropic calls to re-research). Config-level,
+    // not user-scoped — these multipliers apply to every user.
+    //
+    // paperwork_generations is NOT exported (history-only, regenerable).
+    const insuranceValuationNorms = await query<Row>(
+      `SELECT module, category, multiplier::float AS multiplier, notes, updated_at
+         FROM insurance_valuation_norms
+         ORDER BY module, category`,
+      [],
+    );
+
     const payload = {
-      version: "1.0",
+      // Bumped to 1.1 to signal the new fields (insurance/archive cols on
+      // every item, plus the new insurance_valuation_norms top-level key).
+      // The importer accepts both 1.0 and 1.1 — older payloads default
+      // insure=false, archived_at=null.
+      version: "1.1",
       exported_at: new Date().toISOString(),
       collections: result,
+      insurance_valuation_norms: insuranceValuationNorms,
     };
 
     return NextResponse.json(payload);

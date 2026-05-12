@@ -10,6 +10,23 @@ const WATCH_CATEGORIES   = ["luxury-watches", "sport-watches", "dress-watches", 
 const AUTO_CATEGORIES    = ["collection", "household"];
 const IOD_CATEGORIES     = ["fine-art", "memorabilia", "collectibles", "jewelry", "other"];
 const CONDITIONS         = ["Mint", "Excellent", "Very Good", "Good", "Fair", "Poor"];
+const INSURANCE_SOURCES  = ["ai", "alternate_from_user", "user_override"];
+const VALID_VERSIONS     = ["1.0", "1.1"] as const;
+
+// CUR-9: coerce truthy/falsy values from various export shapes into a clean
+// boolean. Old exports (v1.0) don't have `insure` at all → defaults to false.
+function toBool(v: unknown): boolean {
+  if (v === true) return true;
+  if (typeof v === "string") return v.toLowerCase() === "true";
+  return false;
+}
+
+// CUR-9: validate the insurance_value_source against the CHECK constraint;
+// return null for invalid/missing so the DB stores a clean NULL.
+function normalizeInsuranceSource(v: unknown): string | null {
+  if (!v || typeof v !== "string") return null;
+  return INSURANCE_SOURCES.includes(v) ? v : null;
+}
 
 // Normalize a category string to slug form: lowercase, spaces→hyphens
 function normalizeSlug(v: unknown): string {
@@ -123,13 +140,17 @@ async function insertGuitar(r: Record<string, unknown>, userId: string): Promise
     `INSERT INTO guitar_items
       (id, user_id, category, brand, model, year, serial_number, condition,
        purchase_price, purchase_source, color_finish, short_description,
-       link, notes, created_at)
-     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::timestamptz, NOW()))
+       link, notes, created_at,
+       insure, insurance_value, insurance_value_source, insurance_value_date, archived_at)
+     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::timestamptz, NOW()),
+       $16, $17, $18, $19, $20)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [r.id || null, userId, normalizeSlug(r.category), r.brand, r.model, r.year || null, r.serial_number || null,
      normalizeCondition(r.condition) || "Good", toNumber(r.purchase_price), r.purchase_source || null,
-     r.color_finish || null, r.short_description || null, r.link || null, r.notes || null, r.created_at || null],
+     r.color_finish || null, r.short_description || null, r.link || null, r.notes || null, r.created_at || null,
+     toBool(r.insure), toNumber(r.insurance_value), normalizeInsuranceSource(r.insurance_value_source),
+     r.insurance_value_date || null, r.archived_at || null],
   );
   return result[0]?.id ?? null;
 }
@@ -140,15 +161,19 @@ async function insertWatch(r: Record<string, unknown>, userId: string): Promise<
       (id, user_id, category, brand, model, year, reference_number, case_diameter,
        serial_number, condition, purchase_price, purchase_source, dial_color,
        country_of_manufacture, movement, bracelet_material, case_material,
-       short_description, link, notes, created_at)
-     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, COALESCE($21::timestamptz, NOW()))
+       short_description, link, notes, created_at,
+       insure, insurance_value, insurance_value_source, insurance_value_date, archived_at)
+     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, COALESCE($21::timestamptz, NOW()),
+       $22, $23, $24, $25, $26)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [r.id || null, userId, normalizeSlug(r.category), r.brand, r.model, r.year || null, r.reference_number || null,
      r.case_diameter || null, r.serial_number || null, normalizeCondition(r.condition) || "Good", toNumber(r.purchase_price),
      r.purchase_source || null, r.dial_color || null,
      r.country_of_manufacture || null, r.movement || null, r.bracelet_material || null,
-     r.case_material || null, r.short_description || null, r.link || null, r.notes || null, r.created_at || null],
+     r.case_material || null, r.short_description || null, r.link || null, r.notes || null, r.created_at || null,
+     toBool(r.insure), toNumber(r.insurance_value), normalizeInsuranceSource(r.insurance_value_source),
+     r.insurance_value_date || null, r.archived_at || null],
   );
   return result[0]?.id ?? null;
 }
@@ -158,14 +183,18 @@ async function insertAuto(r: Record<string, unknown>, userId: string): Promise<s
     `INSERT INTO automobiles
       (id, user_id, category, brand, model, year, description, trim_level, engine,
        transmission, mileage, condition, body_style, color, vin, purchase_price,
-       purchase_date, purchase_source, notes, created_at)
-     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, COALESCE($20::timestamptz, NOW()))
+       purchase_date, purchase_source, notes, created_at,
+       insure, insurance_value, insurance_value_source, insurance_value_date, archived_at)
+     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, COALESCE($20::timestamptz, NOW()),
+       $21, $22, $23, $24, $25)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [r.id || null, userId, normalizeSlug(r.category), r.brand, r.model, r.year || null, r.description || null,
      r.trim_level || null, r.engine || null, r.transmission || null, r.mileage || null,
      normalizeCondition(r.condition) || null, r.body_style || null, r.color || null, r.vin || null,
-     toNumber(r.purchase_price), r.purchase_date || null, r.purchase_source || null, r.notes || null, r.created_at || null],
+     toNumber(r.purchase_price), r.purchase_date || null, r.purchase_source || null, r.notes || null, r.created_at || null,
+     toBool(r.insure), toNumber(r.insurance_value), normalizeInsuranceSource(r.insurance_value_source),
+     r.insurance_value_date || null, r.archived_at || null],
   );
   return result[0]?.id ?? null;
 }
@@ -175,15 +204,64 @@ async function insertIoD(r: Record<string, unknown>, userId: string): Promise<st
     `INSERT INTO items_of_distinction
       (id, user_id, category, item_type, brand, short_description, long_description,
        year, condition, purchase_price, purchase_date, purchase_source, provenance,
-       notes, created_at)
-     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::timestamptz, NOW()))
+       notes, created_at,
+       insure, insurance_value, insurance_value_source, insurance_value_date, archived_at)
+     VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::timestamptz, NOW()),
+       $16, $17, $18, $19, $20)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [r.id || null, userId, normalizeSlug(r.category), r.item_type || null, r.brand || null, r.short_description,
      r.long_description || null, r.year || null, normalizeCondition(r.condition) || null, toNumber(r.purchase_price),
-     r.purchase_date || null, r.purchase_source || null, r.provenance || null, r.notes || null, r.created_at || null],
+     r.purchase_date || null, r.purchase_source || null, r.provenance || null, r.notes || null, r.created_at || null,
+     toBool(r.insure), toNumber(r.insurance_value), normalizeInsuranceSource(r.insurance_value_source),
+     r.insurance_value_date || null, r.archived_at || null],
   );
   return result[0]?.id ?? null;
+}
+
+// ── Insurance valuation norms UPSERT (CUR-9) ─────────────────────────────────
+//
+// Config-level data — not user-scoped. Roundtrip rehydrates a fresh DB
+// without re-running the AI research. UPSERT on (module, category) so an
+// import overwrites stale local norms with the fresher exported values.
+
+const VALID_MODULES_FOR_NORMS = ["guitars", "watches", "automobiles", "iod"];
+
+async function upsertImportedNorms(rows: unknown): Promise<{ inserted: number; errors: ValidationError[] }> {
+  if (!Array.isArray(rows)) return { inserted: 0, errors: [] };
+  let inserted = 0;
+  const errors: ValidationError[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const v = rows[i];
+    if (!v || typeof v !== "object") continue;
+    const r = v as Record<string, unknown>;
+    const moduleSlug = typeof r.module === "string" ? r.module : null;
+    const category = typeof r.category === "string" ? r.category : null;
+    const multiplier = toNumber(r.multiplier);
+    if (!moduleSlug || !category || multiplier == null || multiplier <= 0) {
+      errors.push({ row: i + 1, field: "insurance_valuation_norms", message: "missing/invalid module/category/multiplier" });
+      continue;
+    }
+    if (!VALID_MODULES_FOR_NORMS.includes(moduleSlug)) {
+      errors.push({ row: i + 1, field: "module", message: `Must be one of: ${VALID_MODULES_FOR_NORMS.join(", ")}` });
+      continue;
+    }
+    try {
+      await query(
+        `INSERT INTO insurance_valuation_norms (module, category, multiplier, notes, updated_at)
+         VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, NOW()))
+         ON CONFLICT (module, category) DO UPDATE SET
+           multiplier = EXCLUDED.multiplier,
+           notes = EXCLUDED.notes,
+           updated_at = NOW()`,
+        [moduleSlug, category, multiplier, r.notes || null, r.updated_at || null],
+      );
+      inserted++;
+    } catch (e) {
+      errors.push({ row: i + 1, field: "insurance_valuation_norms", message: String(e) });
+    }
+  }
+  return { inserted, errors };
 }
 
 // ── Valuations import ─────────────────────────────────────────────────────────
@@ -274,9 +352,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log("[import POST] collections keys:", Object.keys(body?.collections ?? {}));
 
-    if (!body || body.version !== "1.0" || !body.collections || typeof body.collections !== "object") {
+    if (!body || !VALID_VERSIONS.includes(body.version) || !body.collections || typeof body.collections !== "object") {
       return NextResponse.json(
-        { error: "Invalid file format. Expected a Curatada export with version '1.0'." },
+        { error: `Invalid file format. Expected a Curatada export with version ${VALID_VERSIONS.map((v) => `'${v}'`).join(" or ")}.` },
         { status: 400 },
       );
     }
@@ -289,6 +367,7 @@ export async function POST(req: NextRequest) {
       valuations_imported: number;
       errors: ValidationError[];
     }> = {};
+    let normsResult: { inserted: number; errors: ValidationError[] } | null = null;
 
     for (const r of RUNS) {
       if (!cols[r.key]) continue;
@@ -343,7 +422,16 @@ export async function POST(req: NextRequest) {
       results[r.key] = { imported, skipped_existing: skippedExisting, skipped_invalid: skippedInvalid, valuations_imported: valuationsImported, errors };
     }
 
-    return NextResponse.json({ results });
+    // CUR-9: import insurance_valuation_norms when the payload carries them
+    // (v1.1+). Config-level data — UPSERT on (module, category).
+    if (Array.isArray(body.insurance_valuation_norms)) {
+      normsResult = await upsertImportedNorms(body.insurance_valuation_norms);
+    }
+
+    return NextResponse.json({
+      results,
+      ...(normsResult ? { insurance_valuation_norms: normsResult } : {}),
+    });
   } catch (err) {
     console.error("[import]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -358,9 +446,9 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (!body || body.version !== "1.0" || !body.collections || typeof body.collections !== "object") {
+    if (!body || !VALID_VERSIONS.includes(body.version) || !body.collections || typeof body.collections !== "object") {
       return NextResponse.json(
-        { error: "Invalid file format. Expected a Curatada export with version '1.0'." },
+        { error: `Invalid file format. Expected a Curatada export with version ${VALID_VERSIONS.map((v) => `'${v}'`).join(" or ")}.` },
         { status: 400 },
       );
     }
