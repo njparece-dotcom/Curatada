@@ -101,13 +101,17 @@ function EventIcon({ type }: { type: string }) {
 // ── Photo Stack ────────────────────────────────────────────────────────────────
 
 // Fixed transforms — rotation in degrees, scatter offset in px.
-// Photos are large so offsets are kept moderate to keep overlap natural.
+// Spread laterally (~3.5× wider than the original tight pile) so the photos
+// cover more of the right-hand column next to the Provenance Activity
+// timeline rather than clustering in the center. The container has
+// overflow-hidden so anything beyond the column edges is clipped naturally —
+// reads as a panoramic spread rather than a tight stack.
 const PHOTO_TRANSFORMS = [
-  { r: -16, x: -80, y:  45 },
-  { r:  10, x:  70, y: -50 },
-  { r:  -3, x: -28, y: -62 },
-  { r:  19, x:  85, y:  35 },
-  { r:  -9, x:  12, y:  20 },  // top of stack — most visible
+  { r: -16, x: -290, y:  60 },
+  { r:  10, x:  240, y: -55 },
+  { r:  -3, x: -130, y: -70 },
+  { r:  19, x:  280, y:  45 },
+  { r:  -9, x:   10, y:  15 },  // top of stack — most visible, near-center
 ];
 
 // Photo dimensions — 5× the original 118×142
