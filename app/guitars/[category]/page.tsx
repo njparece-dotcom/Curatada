@@ -163,13 +163,14 @@ export default function CategoryPage() {
 
   const runBatchRevalue = useCallback(() => {
     if (pendingRevalue === 0) return;
-    startRevalue(items, category, (id, price) => {
+    // Patch-style callback: the runner sends a partial ItemPatch per
+    // successful item. For an AI revalue, the patch carries
+    // latest_ai_price + date and may also include insurance fields (when
+    // the item was flagged — CUR-5 auto-trigger). For an insurance-only
+    // compute, the patch carries just the three insurance fields.
+    startRevalue(items, category, (id, patch) => {
       setItems((prev) =>
-        prev.map((it) =>
-          it.id === id
-            ? { ...it, latest_ai_price: price, latest_ai_price_date: new Date().toISOString() }
-            : it
-        )
+        prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
       );
     });
   }, [items, category, startRevalue, pendingRevalue]);
