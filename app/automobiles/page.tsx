@@ -23,6 +23,7 @@ const COLUMNS = [
   "Year", "Brand", "Model", "Trim", "Body Style",
   "Engine", "Transmission", "Mileage", "Condition",
   "Buy Cost", "AI Est.", "My Value",
+  "Insured", "Insured Value",
 ];
 
 const PAGE_SIZE = 15;
@@ -165,6 +166,18 @@ export default function AutomobilesPage() {
                             <td className="px-4 py-3 whitespace-nowrap">
                               {item.latest_user_price != null
                                 ? <span className="text-text font-mono font-medium">{fmt(item.latest_user_price)}</span>
+                                : <span className="text-text-dim">—</span>}
+                            </td>
+                            {/* Insured */}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {item.insure
+                                ? <span className="text-accent text-xs font-medium">Yes</span>
+                                : <span className="text-text-dim">—</span>}
+                            </td>
+                            {/* Insured Value */}
+                            <td className="px-4 py-3 whitespace-nowrap font-mono">
+                              {item.insurance_value != null
+                                ? <span className="text-text font-medium">{fmt(item.insurance_value)}</span>
                                 : <span className="text-text-dim">—</span>}
                             </td>
                           </tr>
