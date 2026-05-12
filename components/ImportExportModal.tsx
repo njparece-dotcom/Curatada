@@ -9,6 +9,11 @@ interface ImportResult {
   skipped_existing: number;
   skipped_invalid: number;
   valuations_imported: number;
+  // v1.2: image-row counts. `images_imported` is the DB-row count;
+  // `image_bytes_written` is the subset where bytes were actually re-uploaded
+  // (only when the export carried `data_base64`).
+  images_imported: number;
+  image_bytes_written: number;
   errors: ValidationError[];
 }
 
@@ -30,6 +35,11 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
   // ── Export state ─────────────────────────────────────────────────────────
   const [selected, setSelected]     = useState<Set<CollectionKey>>(new Set<CollectionKey>(["guitars", "watches", "automobiles", "collectibles"]));
   const [exporting, setExporting]   = useState(false);
+  // v1.2: opt-in to embedding image bytes (base64) in the JSON. Off by
+  // default — the file stays small and the export covers "I'm migrating
+  // within the same R2 bucket" cleanly. On = full portability backup that
+  // survives an R2 wipe; can balloon the file to hundreds of MB.
+  const [includeImageData, setIncludeImageData] = useState(false);
 
   const toggleCollection = (key: CollectionKey) =>
     setSelected((prev) => {
@@ -45,7 +55,10 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
       const res  = await fetch("/api/data/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collections: Array.from(selected) }),
+        body: JSON.stringify({
+          collections: Array.from(selected),
+          include_image_data: includeImageData,
+        }),
       });
       const data = await res.json();
       const json = JSON.stringify(data, null, 2);
@@ -277,8 +290,30 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
                 ))}
               </div>
 
+              {/* Image-bytes opt-in. Off by default — most exports are
+                  same-bucket roundtrips where the bytes are already in R2
+                  and embedding them just bloats the JSON. */}
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                includeImageData
+                  ? "border-accent/50 bg-accent/5"
+                  : "border-border bg-surface-2 hover:bg-surface-3"
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={includeImageData}
+                  onChange={(e) => setIncludeImageData(e.target.checked)}
+                  className="accent-[#e9c176] w-4 h-4 flex-shrink-0 mt-0.5"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-text">Include image data</div>
+                  <p className="text-xs text-text-dim mt-0.5">
+                    Embed the raw image bytes (base64) so the export is a complete backup that survives a storage wipe. Significantly larger file — leave off if you&apos;re just moving data between deploys that share the same R2 bucket.
+                  </p>
+                </div>
+              </label>
+
               <div className="pt-1 text-xs text-text-dim bg-surface-2 rounded-xl p-3 border border-border">
-                <strong className="text-text">Note:</strong> Export includes all item fields and latest valuations. Images are not included — they remain stored on your server.
+                <strong className="text-text">Note:</strong> Image rows (filename, ordering, moderation status) are always included so a re-import preserves them. Image bytes are embedded only when the option above is checked.
               </div>
             </div>
           )}
@@ -425,10 +460,16 @@ export default function ImportExportModal({ onClose }: { onClose: () => void }) 
                             <span className="flex items-center gap-2 text-sm text-text">
                               <span>{icon}</span>{label}
                             </span>
-                            <div className="flex items-center gap-3 text-xs">
+                            <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
                               <span className="text-green-400">{r.imported} imported</span>
                               {r.valuations_imported > 0 && (
                                 <span className="text-accent">+{r.valuations_imported} valuation{r.valuations_imported === 1 ? "" : "s"}</span>
+                              )}
+                              {r.images_imported > 0 && (
+                                <span className="text-accent" title={r.image_bytes_written > 0 ? `${r.image_bytes_written} re-uploaded to storage` : "metadata only"}>
+                                  +{r.images_imported} image{r.images_imported === 1 ? "" : "s"}
+                                  {r.image_bytes_written > 0 && ` (${r.image_bytes_written} w/bytes)`}
+                                </span>
                               )}
                               {r.skipped_existing > 0 && (
                                 <span className="text-text-dim">{r.skipped_existing} already present</span>

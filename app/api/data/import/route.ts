@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import path from "path";
+import fs from "fs/promises";
 import { authOptions } from "@/lib/auth";
 import { query } from "@/lib/db";
+import { r2IsConfigured, r2PutObject } from "@/lib/storage/r2";
 
 // ── Valid enum values ─────────────────────────────────────────────────────────
 
@@ -11,7 +14,8 @@ const AUTO_CATEGORIES    = ["collection", "household"];
 const IOD_CATEGORIES     = ["fine-art", "memorabilia", "collectibles", "jewelry", "other"];
 const CONDITIONS         = ["Mint", "Excellent", "Very Good", "Good", "Fair", "Poor"];
 const INSURANCE_SOURCES  = ["ai", "alternate_from_user", "user_override"];
-const VALID_VERSIONS     = ["1.0", "1.1"] as const;
+const VALID_VERSIONS     = ["1.0", "1.1", "1.2"] as const;
+const VALID_MOD_STATUSES = ["unreviewed", "clean", "flagged", "approved", "blocked"];
 
 // CUR-9: coerce truthy/falsy values from various export shapes into a clean
 // boolean. Old exports (v1.0) don't have `insure` at all → defaults to false.
@@ -324,6 +328,130 @@ async function insertValuations(
   return { inserted, errors };
 }
 
+// ── Images import (v1.2) ─────────────────────────────────────────────────────
+//
+// Embedded under each item as `images: [...]` by the exporter (v1.2+). Same
+// schema across all four modules; only the table + FK column name differs.
+//
+// Bytes handling:
+//   - If the row carries `data_base64`, decode it and write to R2 (or local
+//     disk in dev). The filename from the export is reused so a roundtrip
+//     within the same bucket is a no-op write; cross-bucket migrations
+//     populate a fresh bucket with the same keys.
+//   - If `data_base64` is absent, the importer inserts the DB row pointing
+//     at the existing filename. This is the metadata-only path — caller is
+//     responsible for ensuring the R2 object exists (same bucket reuse).
+//
+// Idempotent + ownership-enforced like insertValuations: INSERT ... SELECT ...
+// WHERE EXISTS verifies the parent item belongs to the current user;
+// ON CONFLICT (id) DO NOTHING means a re-run is a no-op for already-imported
+// rows. A partial first run resumes cleanly on the second attempt.
+//
+// Failures during the byte write (R2 PUT error, disk full, etc.) skip just
+// that image's row — we'd rather see the item arrive with a degraded image
+// set than fail the whole import.
+
+async function writeImageBytes(filename: string, buffer: Buffer, mimeType: string | null): Promise<boolean> {
+  try {
+    if (r2IsConfigured()) {
+      await r2PutObject(filename, buffer, mimeType || "application/octet-stream");
+    } else {
+      const uploadsDir = path.join(process.cwd(), "public", "uploads");
+      await fs.mkdir(uploadsDir, { recursive: true });
+      await fs.writeFile(path.join(uploadsDir, filename), buffer);
+    }
+    return true;
+  } catch (err) {
+    console.error(`[import] failed to write bytes for ${filename}:`, err);
+    return false;
+  }
+}
+
+function isValidModerationStatus(v: unknown): string {
+  if (typeof v !== "string") return "unreviewed";
+  return VALID_MOD_STATUSES.includes(v) ? v : "unreviewed";
+}
+
+async function insertImages(
+  itemsTable: string,
+  imagesTable: string,
+  fkColumn: string,
+  itemId: string,
+  userId: string,
+  rows: unknown,
+): Promise<{ inserted: number; bytes_written: number; errors: ValidationError[] }> {
+  if (!Array.isArray(rows)) return { inserted: 0, bytes_written: 0, errors: [] };
+  let inserted = 0;
+  let bytesWritten = 0;
+  const errors: ValidationError[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const v = rows[i];
+    if (!v || typeof v !== "object") continue;
+    const r = v as Record<string, unknown>;
+
+    const filename = typeof r.filename === "string" ? r.filename : null;
+    const imgPath = typeof r.path === "string" ? r.path : null;
+    if (!filename || !imgPath) {
+      errors.push({ row: i + 1, field: "image", message: "filename and path required" });
+      continue;
+    }
+
+    // Bytes side: if present, write before the row insert so a failed PUT
+    // surfaces as a skipped image rather than an orphaned row.
+    if (typeof r.data_base64 === "string" && r.data_base64.length > 0) {
+      try {
+        const buf = Buffer.from(r.data_base64, "base64");
+        const ok = await writeImageBytes(filename, buf, typeof r.mime_type === "string" ? r.mime_type : null);
+        if (!ok) {
+          errors.push({ row: i + 1, field: "image_bytes", message: "failed to write bytes" });
+          continue;
+        }
+        bytesWritten++;
+      } catch (e) {
+        errors.push({ row: i + 1, field: "image_bytes", message: String(e) });
+        continue;
+      }
+    }
+
+    try {
+      const result = await query<{ id: string }>(
+        `INSERT INTO ${imagesTable}
+           (id, ${fkColumn}, filename, original_name, path, mime_type, size,
+            is_primary, sort_order, created_at,
+            moderation_status, nsfw_score, nsfw_categories)
+         SELECT COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7,
+                $8, $9, COALESCE($10::timestamptz, NOW()),
+                $11, $12, $13::jsonb
+         WHERE EXISTS (SELECT 1 FROM ${itemsTable} WHERE id = $2 AND user_id = $14)
+         ON CONFLICT (id) DO NOTHING
+         RETURNING id`,
+        [
+          r.id || null,
+          itemId,
+          filename,
+          r.original_name || null,
+          imgPath,
+          r.mime_type || null,
+          toNumber(r.size),
+          toBool(r.is_primary),
+          typeof r.sort_order === "number" ? r.sort_order : 0,
+          r.created_at || null,
+          isValidModerationStatus(r.moderation_status),
+          toNumber(r.nsfw_score),
+          r.nsfw_categories ? JSON.stringify(r.nsfw_categories) : null,
+          userId,
+        ],
+      );
+      if (result.length > 0) inserted++;
+      // result.length === 0: duplicate (ON CONFLICT) or parent-not-owned —
+      // both ownership-safe, not surfaced as errors.
+    } catch (e) {
+      errors.push({ row: i + 1, field: "image", message: String(e) });
+    }
+  }
+  return { inserted, bytes_written: bytesWritten, errors };
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 interface CollectionRun {
@@ -333,13 +461,15 @@ interface CollectionRun {
   itemsTable: string;
   valuationsTable: string;
   valuationsFk: string;
+  imagesTable: string;
+  imagesFk: string;
 }
 
 const RUNS: CollectionRun[] = [
-  { key: "guitars",      validator: validateGuitar, inserter: insertGuitar, itemsTable: "guitar_items",          valuationsTable: "guitar_valuations", valuationsFk: "guitar_item_id" },
-  { key: "watches",      validator: validateWatch,  inserter: insertWatch,  itemsTable: "watch_items",           valuationsTable: "watch_valuations",  valuationsFk: "watch_item_id"  },
-  { key: "automobiles",  validator: validateAuto,   inserter: insertAuto,   itemsTable: "automobiles",           valuationsTable: "auto_valuations",   valuationsFk: "auto_id"        },
-  { key: "collectibles", validator: validateIoD,    inserter: insertIoD,    itemsTable: "items_of_distinction",  valuationsTable: "iod_valuations",    valuationsFk: "iod_id"         },
+  { key: "guitars",      validator: validateGuitar, inserter: insertGuitar, itemsTable: "guitar_items",          valuationsTable: "guitar_valuations", valuationsFk: "guitar_item_id", imagesTable: "guitar_images", imagesFk: "guitar_item_id" },
+  { key: "watches",      validator: validateWatch,  inserter: insertWatch,  itemsTable: "watch_items",           valuationsTable: "watch_valuations",  valuationsFk: "watch_item_id",  imagesTable: "watch_images",  imagesFk: "watch_item_id"  },
+  { key: "automobiles",  validator: validateAuto,   inserter: insertAuto,   itemsTable: "automobiles",           valuationsTable: "auto_valuations",   valuationsFk: "auto_id",        imagesTable: "auto_images",   imagesFk: "auto_id"        },
+  { key: "collectibles", validator: validateIoD,    inserter: insertIoD,    itemsTable: "items_of_distinction",  valuationsTable: "iod_valuations",    valuationsFk: "iod_id",         imagesTable: "iod_images",    imagesFk: "iod_id"         },
 ];
 
 export async function POST(req: NextRequest) {
@@ -365,6 +495,8 @@ export async function POST(req: NextRequest) {
       skipped_existing: number;
       skipped_invalid: number;
       valuations_imported: number;
+      images_imported: number;
+      image_bytes_written: number;
       errors: ValidationError[];
     }> = {};
     let normsResult: { inserted: number; errors: ValidationError[] } | null = null;
@@ -372,10 +504,10 @@ export async function POST(req: NextRequest) {
     for (const r of RUNS) {
       if (!cols[r.key]) continue;
       if (!Array.isArray(cols[r.key])) {
-        results[r.key] = { imported: 0, skipped_existing: 0, skipped_invalid: 0, valuations_imported: 0, errors: [{ row: 0, field: r.key, message: "Must be an array" }] };
+        results[r.key] = { imported: 0, skipped_existing: 0, skipped_invalid: 0, valuations_imported: 0, images_imported: 0, image_bytes_written: 0, errors: [{ row: 0, field: r.key, message: "Must be an array" }] };
         continue;
       }
-      let imported = 0, skippedExisting = 0, skippedInvalid = 0, valuationsImported = 0;
+      let imported = 0, skippedExisting = 0, skippedInvalid = 0, valuationsImported = 0, imagesImported = 0, imageBytesWritten = 0;
       const errors: ValidationError[] = [];
       for (let i = 0; i < cols[r.key].length; i++) {
         const row = cols[r.key][i] as Record<string, unknown>;
@@ -413,13 +545,29 @@ export async function POST(req: NextRequest) {
             for (const e of vRes.errors) {
               errors.push({ row: i + 1, field: `valuation[${e.row}].${e.field}`, message: e.message });
             }
+
+            // Images: v1.2+ payloads carry an `images` array. Older payloads
+            // simply have no array and insertImages is a no-op.
+            const iRes = await insertImages(
+              r.itemsTable,
+              r.imagesTable,
+              r.imagesFk,
+              itemId,
+              userId,
+              row.images,
+            );
+            imagesImported += iRes.inserted;
+            imageBytesWritten += iRes.bytes_written;
+            for (const e of iRes.errors) {
+              errors.push({ row: i + 1, field: `image[${e.row}].${e.field}`, message: e.message });
+            }
           }
         } catch (e) {
           errors.push({ row: i + 1, field: "db", message: String(e) });
           skippedInvalid++;
         }
       }
-      results[r.key] = { imported, skipped_existing: skippedExisting, skipped_invalid: skippedInvalid, valuations_imported: valuationsImported, errors };
+      results[r.key] = { imported, skipped_existing: skippedExisting, skipped_invalid: skippedInvalid, valuations_imported: valuationsImported, images_imported: imagesImported, image_bytes_written: imageBytesWritten, errors };
     }
 
     // CUR-9: import insurance_valuation_norms when the payload carries them
