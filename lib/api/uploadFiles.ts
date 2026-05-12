@@ -8,6 +8,15 @@ export interface UploadedFile {
   path: string;
   mime_type: string;
   size: number;
+  // Tier-1 moderation verdict from /api/upload (lib/moderation/nsfw.ts).
+  // Present on every successful upload — hard-blocked images surface as a
+  // thrown Error in `uploadFiles` instead of an entry here. Callers spread
+  // the entire UploadedFile into their item-POST body, so these fields
+  // round-trip into the `*_images` INSERT in lib/collection-handler.ts
+  // without per-modal wiring.
+  moderation_status: "clean" | "flagged";
+  nsfw_score: number;
+  nsfw_categories: { className: string; probability: number }[];
 }
 
 export async function uploadFiles(files: File[]): Promise<UploadedFile[]> {

@@ -20,6 +20,12 @@ interface ImagePath {
   path: string;
   mime_type?: string | null;
   size?: number | null;
+  // Tier-1 moderation metadata produced by /api/upload (lib/moderation/nsfw.ts).
+  // Optional for backwards compatibility — any caller that posts an image
+  // path without these fields lands at the DB default ('unreviewed').
+  moderation_status?: "clean" | "flagged" | "unreviewed" | null;
+  nsfw_score?: number | null;
+  nsfw_categories?: { className: string; probability: number }[] | null;
 }
 
 // ── SQL fragment builders ─────────────────────────────────────────────────────
@@ -174,9 +180,14 @@ async function insertImagePaths(
 ): Promise<void> {
   for (let i = 0; i < imagePaths.length; i++) {
     const img = imagePaths[i];
+    // Moderation columns (migration 017) — pass through the verdict from
+    // /api/upload when present. Falling back to the DB default ('unreviewed'
+    // + null score) keeps callers that predate the moderation pipeline
+    // working unchanged; the public-gallery feature will treat 'unreviewed'
+    // the same as 'flagged' until it gets a Tier-2 pass.
     await query(
-      `INSERT INTO ${c.imagesTable} (${c.imageFkColumn}, filename, original_name, path, mime_type, size, is_primary, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO ${c.imagesTable} (${c.imageFkColumn}, filename, original_name, path, mime_type, size, is_primary, sort_order, moderation_status, nsfw_score, nsfw_categories)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'unreviewed'), $10, $11)`,
       [
         itemId,
         img.filename,
@@ -186,6 +197,9 @@ async function insertImagePaths(
         img.size ?? null,
         !hasExisting && i === 0,
         startIndex + i,
+        img.moderation_status ?? null,
+        img.nsfw_score ?? null,
+        img.nsfw_categories ? JSON.stringify(img.nsfw_categories) : null,
       ]
     );
   }
