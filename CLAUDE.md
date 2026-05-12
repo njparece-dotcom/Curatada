@@ -57,6 +57,7 @@ Required env vars on the app service (in addition to platform-injected `PORT`):
 | `MGMT_API_TOKEN` | Bearer token for the cross-app dashboard's `/api/mgmt/v1/*` calls. Without it, the mgmt API returns 503. |
 | `MGMT_REQUIRE_INTERNAL` | `1` to reject mgmt calls coming through the public edge (any `x-forwarded-for`). Pairs with `curatada.railway.internal`. |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | Cloudflare R2 for image storage. All four required in production; if any is missing the app falls back to local disk. |
+| `ADMIN_EMAILS` | Comma-separated allowlist of admin emails. Gates `/admin/moderation` and `/api/admin/*` (see `lib/admin.ts`). Unset = no admins. Match against `session.user.email`, case-insensitive. |
 | `NODE_ENV` | Should be `production` (Railway sets this automatically; verify) |
 
 Railway's "Networking → Public Networking → Target Port" must be **3000** (the
@@ -198,8 +199,16 @@ objects.
   planned for when an image enters a public gallery — that will revisit
   `flagged` rows and either `approve` or `block` them. The
   `moderation_status` column already includes `'approved'` and `'blocked'`
-  values for that pipeline. Public gallery + admin review queue are not
-  yet built.
+  values for that pipeline.
+
+  **Admin review queue** lives at `/admin/moderation` and the
+  `/api/admin/moderation/*` endpoints. UNION query across all four image
+  tables driven by `lib/moderation/queue.ts` `MODULE_TABLES`. Admins
+  toggle status chips + drag a min-score slider; approve/block writes
+  the new `moderation_status` (no file deletion — reversible by design,
+  a future cron sweeps `blocked` R2 objects). Gated by `ADMIN_EMAILS`
+  env var; the tab strip is scaffolded for a "Public Gallery review"
+  surface that drops in once public galleries exist.
 
 - **Railway build phase has no `DATABASE_URL`.** `lib/db.ts` lazy-inits, so
   importing it doesn't throw during `next build`'s page-data collection.
@@ -309,6 +318,10 @@ curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
   "Image moderation runs in-process" Gotcha above. **Tier-2 deferred:**
   Claude vision pass on `flagged`/`unreviewed` rows at gallery-publish
   time, gated by the (not-yet-built) public gallery feature.
+- **Admin moderation queue** (`/admin/moderation`) — done. Cross-module
+  UNION queue with status chips + score slider, approve/block actions.
+  Gated by the `ADMIN_EMAILS` env-var allowlist (`lib/admin.ts`). Tab
+  strip is scaffolded for the future "Public Gallery review" surface.
 - **CI gate for auto-merge** — not done. `gh pr merge --auto` is enabled
   on the repo but with no required status check it merges immediately.
   ~30 lines of GitHub Actions YAML (`tsc --noEmit` + `next build`) plus

@@ -5,6 +5,7 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import AppleProvider from "next-auth/providers/apple";
 import bcrypt from "bcryptjs";
 import { query, queryOne } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -72,10 +73,17 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user }) {
       if (user?.id) token.userId = user.id;
+      // Recompute on every JWT pass so an env-var change picks up at next
+      // session refresh without forcing a sign-out. The lookup is just a
+      // Set.has — cheap.
+      token.isAdmin = isAdminEmail(token.email ?? null);
       return token;
     },
     async session({ session, token }) {
       if (token.userId) session.user.id = token.userId as string;
+      // Surface the admin flag to the client. UI uses this for nav gating;
+      // the API enforces independently via isAdmin(session) on each call.
+      session.user.isAdmin = token.isAdmin === true;
       return session;
     },
   },

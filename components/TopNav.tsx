@@ -172,6 +172,22 @@ export default function TopNav() {
                   </svg>
                   Manage Collections
                 </button>
+                {/* Admin-only link. `session.user.isAdmin` is stamped from the
+                    ADMIN_EMAILS env-var allowlist by lib/auth.ts callbacks;
+                    the page itself re-checks server-side, so this UI gate is
+                    cosmetic. See lib/admin.ts. */}
+                {session.user.isAdmin && (
+                  <Link
+                    href="/admin/moderation"
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full text-left px-4 py-2.5 text-sm text-text-dim hover:text-text hover:bg-surface-2 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Moderation Queue
+                  </Link>
+                )}
                 <div className="border-t border-border/50" />
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
