@@ -13,8 +13,14 @@ export interface FieldSpec {
   type?: "boolean";
 }
 
+// Module slug used by lib/insurance-valuation.ts MODULE_CATEGORIES and the
+// admin route. Kept here to avoid a circular import (collection-handler.ts
+// imports from this file).
+export type ModuleSlug = "guitars" | "watches" | "automobiles" | "iod";
+
 export interface CollectionConfig {
   label: string;             // for error messages and logs
+  moduleSlug: ModuleSlug;    // matches lib/insurance-valuation.ts MODULE_CATEGORIES key (CUR-5)
   table: string;             // parent table, e.g. "guitar_items"
   alias: string;             // table alias used in SQL, e.g. "gi"
   imagesTable: string;       // child images table, e.g. "guitar_images"

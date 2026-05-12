@@ -2,6 +2,7 @@ import type { CollectionConfig } from "./types";
 
 export const guitarConfig: CollectionConfig = {
   label: "guitar",
+  moduleSlug: "guitars",
   table: "guitar_items",
   alias: "gi",
   imagesTable: "guitar_images",

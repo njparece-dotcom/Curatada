@@ -16,6 +16,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { query, queryOne } from "@/lib/db";
 import type { InsuranceValueSource } from "@/lib/types";
+import type { ModuleSlug } from "@/lib/collections/types";
 
 import { guitarInsuranceNormsPrompt } from "@/lib/collections/guitar-prompt";
 import { watchInsuranceNormsPrompt } from "@/lib/collections/watch-prompt";
@@ -24,9 +25,9 @@ import { iodInsuranceNormsPrompt } from "@/lib/collections/iod-prompt";
 
 const client = new Anthropic();
 
-// Slug used in DB rows + prompt builders. Mirrors `user_modules.module` and
-// `paperwork_generations.kind`'s module concept — single source of truth here.
-export type ModuleSlug = "guitars" | "watches" | "automobiles" | "iod";
+// Re-export so callers can `import { ModuleSlug } from "@/lib/insurance-valuation"`
+// without leaking the collections/types dependency.
+export type { ModuleSlug } from "@/lib/collections/types";
 
 // Norms older than this trigger a synchronous re-research on next access.
 // Matches the 90-day cadence documented in the CUR-1 PRD's functional

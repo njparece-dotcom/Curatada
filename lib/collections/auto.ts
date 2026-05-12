@@ -2,6 +2,7 @@ import type { CollectionConfig } from "./types";
 
 export const autoConfig: CollectionConfig = {
   label: "automobile",
+  moduleSlug: "automobiles",
   table: "automobiles",
   alias: "a",
   imagesTable: "auto_images",

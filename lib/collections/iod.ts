@@ -2,6 +2,7 @@ import type { CollectionConfig } from "./types";
 
 export const iodConfig: CollectionConfig = {
   label: "item-of-distinction",
+  moduleSlug: "iod",
   table: "items_of_distinction",
   alias: "i",
   imagesTable: "iod_images",

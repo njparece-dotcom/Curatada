@@ -2,6 +2,7 @@ import type { CollectionConfig } from "./types";
 
 export const watchConfig: CollectionConfig = {
   label: "watch",
+  moduleSlug: "watches",
   table: "watch_items",
   alias: "wi",
   imagesTable: "watch_images",
