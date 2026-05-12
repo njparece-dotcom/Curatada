@@ -16,10 +16,19 @@ import WatchValuationPromptModal from "@/components/WatchValuationPromptModal";
 import WatchCSVImportModal from "@/components/WatchCSVImportModal";
 import BulkActionBar from "@/components/BulkActionBar";
 import { useRevalue, needsRevalue } from "@/lib/RevalueContext";
+import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
 
-type SortField = "date" | "brand" | "value";
+// SortField is loose `string` so the SortableHeader callback can hand us
+// any of the WatchListView column keys without a type-juggle. Comparator
+// switch falls through to compareValues for anything not specially handled.
+type SortField = string;
 type SortDir = "asc" | "desc";
 type ViewMode = "tiles" | "list";
+
+const DEFAULT_ASC_FIELDS = new Set([
+  "brand", "model", "dial_color", "movement", "case_material",
+  "bracelet_material", "short_description", "condition",
+]);
 
 export default function WatchCategoryPage() {
   const params = useParams();
@@ -86,26 +95,33 @@ export default function WatchCategoryPage() {
       let cmp = 0;
       if (sortBy === "date") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else if (sortBy === "brand") {
-        cmp = (a.brand || "").localeCompare(b.brand || "");
       } else if (sortBy === "value") {
-        const aVal = Number(a.latest_ai_price ?? a.latest_user_price ?? a.purchase_price ?? 0);
-        const bVal = Number(b.latest_ai_price ?? b.latest_user_price ?? b.purchase_price ?? 0);
-        cmp = aVal - bVal;
+        cmp = bestPriceOf(a) - bestPriceOf(b);
+      } else if (sortBy === "condition") {
+        cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
+      } else if (sortBy === "insure") {
+        cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
+      } else {
+        cmp = compareValues(
+          (a as unknown as Record<string, unknown>)[sortBy],
+          (b as unknown as Record<string, unknown>)[sortBy],
+        );
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
   }, [items, sortBy, sortDir]);
 
-  const toggleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortBy(field);
-      setSortDir(field === "brand" ? "asc" : "desc");
-    }
-  };
+  const toggleSort = useCallback((field: SortField) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(DEFAULT_ASC_FIELDS.has(field) ? "asc" : "desc");
+      return field;
+    });
+  }, []);
 
   const handleItemAdded = useCallback((newItem: WatchItem, offerValuation?: boolean) => {
     setItems((prev) => [newItem, ...prev]);
@@ -357,6 +373,9 @@ export default function WatchCategoryPage() {
             if (selectedIds.size === items.length && items.length > 0) clearSelection();
             else setSelectedIds(new Set(items.map((i) => i.id)));
           }}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSortToggle={toggleSort}
         />
       )}
 

@@ -16,10 +16,22 @@ import ValuationPromptModal from "@/components/ValuationPromptModal";
 import CSVImportModal from "@/components/CSVImportModal";
 import BulkActionBar from "@/components/BulkActionBar";
 import { useRevalue, needsRevalue } from "@/lib/RevalueContext";
+import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
 
-type SortField = "date" | "brand" | "value";
+// SortField covers both the existing toolbar buttons (date / brand / value)
+// and the per-column keys used by SortableHeader in the list-view table.
+// Loosened to `string` so the SortableHeader callback can hand us any of the
+// GuitarListView COLUMNS field keys without needing to keep two unions in
+// sync. The comparator switch falls through to compareValues for anything
+// not explicitly handled.
+type SortField = string;
 type SortDir = "asc" | "desc";
 type ViewMode = "tiles" | "list";
+
+// Per-page default direction when switching to a new sort column. Most
+// columns make sense descending (highest value, newest year) but a few are
+// more naturally ascending (brand A→Z, condition worst-first).
+const DEFAULT_ASC_FIELDS = new Set(["brand", "model", "color_finish", "short_description", "condition"]);
 
 export default function CategoryPage() {
   const params = useParams();
@@ -88,26 +100,39 @@ export default function CategoryPage() {
       let cmp = 0;
       if (sortBy === "date") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else if (sortBy === "brand") {
-        cmp = (a.brand || "").localeCompare(b.brand || "");
       } else if (sortBy === "value") {
-        const aVal = Number(a.latest_ai_price ?? a.latest_user_price ?? a.purchase_price ?? 0);
-        const bVal = Number(b.latest_ai_price ?? b.latest_user_price ?? b.purchase_price ?? 0);
-        cmp = aVal - bVal;
+        cmp = bestPriceOf(a) - bestPriceOf(b);
+      } else if (sortBy === "condition") {
+        cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
+      } else if (sortBy === "insure") {
+        cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
+      } else {
+        // Generic field lookup — handles every other column key from the
+        // GuitarListView COLUMNS array (year, brand, model, color_finish,
+        // short_description, purchase_price, latest_ai_price,
+        // latest_user_price, insurance_value, etc.).
+        cmp = compareValues(
+          (a as unknown as Record<string, unknown>)[sortBy],
+          (b as unknown as Record<string, unknown>)[sortBy],
+        );
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
   }, [items, sortBy, sortDir]);
 
-  const toggleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortBy(field);
-      setSortDir(field === "brand" ? "asc" : "desc");
-    }
-  };
+  const toggleSort = useCallback((field: SortField) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        // Same column: just flip direction.
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      // New column: use the natural default direction for the field.
+      setSortDir(DEFAULT_ASC_FIELDS.has(field) ? "asc" : "desc");
+      return field;
+    });
+  }, []);
 
   const handleItemAdded = useCallback((newItem: GuitarItem, offerValuation?: boolean) => {
     setItems((prev) => [newItem, ...prev]);
@@ -363,6 +388,9 @@ export default function CategoryPage() {
             if (selectedIds.size === items.length && items.length > 0) clearSelection();
             else setSelectedIds(new Set(items.map((i) => i.id)));
           }}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSortToggle={toggleSort}
         />
       )}
 
