@@ -2,7 +2,7 @@
 
 import { useHideValues } from "@/lib/HideValuesContext";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   AutoItem,
@@ -12,6 +12,8 @@ import {
   CONDITION_COLORS,
 } from "@/lib/types";
 import AutomobileDetailModal from "@/components/AutomobileDetailModal";
+import SortableHeader from "@/components/forms/SortableHeader";
+import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
 
 const fmtRaw = (n: number | null | undefined) => {
   if (n == null) return "—";
@@ -19,12 +21,26 @@ const fmtRaw = (n: number | null | undefined) => {
 };
 const fmtMiles = (n: number | null | undefined) => n == null ? "—" : `${Number(n).toLocaleString()} mi`;
 
-const COLUMNS = [
-  "Year", "Brand", "Model", "Trim", "Body Style",
-  "Engine", "Transmission", "Mileage", "Condition",
-  "Buy Cost", "AI Est.", "My Value",
-  "Insured", "Insured Value",
+const COLUMNS: { label: string; field?: string }[] = [
+  { label: "Year", field: "year" },
+  { label: "Brand", field: "brand" },
+  { label: "Model", field: "model" },
+  { label: "Trim", field: "trim_level" },
+  { label: "Body Style", field: "body_style" },
+  { label: "Engine", field: "engine" },
+  { label: "Transmission", field: "transmission" },
+  { label: "Mileage", field: "mileage" },
+  { label: "Condition", field: "condition" },
+  { label: "Buy Cost", field: "purchase_price" },
+  { label: "AI Est.", field: "latest_ai_price" },
+  { label: "My Value", field: "latest_user_price" },
+  { label: "Insured", field: "insure" },
+  { label: "Insured Value", field: "insurance_value" },
 ];
+
+const DEFAULT_ASC_FIELDS = new Set([
+  "brand", "model", "trim_level", "body_style", "engine", "transmission", "condition",
+]);
 
 const PAGE_SIZE = 15;
 
@@ -38,6 +54,43 @@ export default function AutomobilesPage() {
     collection: 0,
     household: 0,
   });
+
+  // Sort state — shared across both category sections.
+  const [sortBy, setSortBy] = useState<string>("year");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = useCallback((field: string) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(DEFAULT_ASC_FIELDS.has(field) ? "asc" : "desc");
+      return field;
+    });
+    setPages({ collection: 0, household: 0 });
+  }, []);
+
+  const sortedItems = useMemo(() => {
+    const copy = [...allItems];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "value") {
+        cmp = bestPriceOf(a) - bestPriceOf(b);
+      } else if (sortBy === "condition") {
+        cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
+      } else if (sortBy === "insure") {
+        cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
+      } else {
+        cmp = compareValues(
+          (a as unknown as Record<string, unknown>)[sortBy],
+          (b as unknown as Record<string, unknown>)[sortBy],
+        );
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [allItems, sortBy, sortDir]);
 
   useEffect(() => {
     fetch("/api/automobiles")
@@ -86,7 +139,7 @@ export default function AutomobilesPage() {
       ) : (
         <div className="space-y-10">
           {AUTO_CATEGORIES.map((cat) => {
-            const catItems = allItems.filter((i) => i.category === cat);
+            const catItems = sortedItems.filter((i) => i.category === cat);
             const page = pages[cat];
             const totalPages = Math.max(1, Math.ceil(catItems.length / PAGE_SIZE));
             const pageItems = catItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
@@ -119,9 +172,14 @@ export default function AutomobilesPage() {
                     <thead>
                       <tr className="bg-surface-2 border-b border-border">
                         {COLUMNS.map((col) => (
-                          <th key={col} className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-2.5 whitespace-nowrap">
-                            {col}
-                          </th>
+                          <SortableHeader
+                            key={col.label}
+                            label={col.label}
+                            field={col.field}
+                            currentSort={sortBy}
+                            currentDir={sortDir}
+                            onToggle={toggleSort}
+                          />
                         ))}
                       </tr>
                     </thead>

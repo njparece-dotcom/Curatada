@@ -2,7 +2,7 @@
 
 import { useHideValues } from "@/lib/HideValuesContext";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   IoDItem,
@@ -12,17 +12,27 @@ import {
   CONDITION_COLORS,
 } from "@/lib/types";
 import IoDDetailModal from "@/components/IoDDetailModal";
+import SortableHeader from "@/components/forms/SortableHeader";
+import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
 
 const fmtRaw = (n: number | null | undefined) => {
   if (n == null) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(n));
 };
 
-const COLUMNS = [
-  "Type", "Brand", "Short Description", "Condition",
-  "Buy Cost", "AI Est.", "My Value",
-  "Insured", "Insured Value",
+const COLUMNS: { label: string; field?: string }[] = [
+  { label: "Type", field: "item_type" },
+  { label: "Brand", field: "brand" },
+  { label: "Short Description", field: "short_description" },
+  { label: "Condition", field: "condition" },
+  { label: "Buy Cost", field: "purchase_price" },
+  { label: "AI Est.", field: "latest_ai_price" },
+  { label: "My Value", field: "latest_user_price" },
+  { label: "Insured", field: "insure" },
+  { label: "Insured Value", field: "insurance_value" },
 ];
+
+const DEFAULT_ASC_FIELDS = new Set(["item_type", "brand", "short_description", "condition"]);
 
 const PAGE_SIZE = 15;
 
@@ -39,6 +49,43 @@ export default function CollectiblesPage() {
     jewelry: 0,
     other: 0,
   });
+
+  // Sort state — shared across all 5 category sections.
+  const [sortBy, setSortBy] = useState<string>("short_description");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const toggleSort = useCallback((field: string) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(DEFAULT_ASC_FIELDS.has(field) ? "asc" : "desc");
+      return field;
+    });
+    setPages({ "fine-art": 0, memorabilia: 0, collectibles: 0, jewelry: 0, other: 0 });
+  }, []);
+
+  const sortedItems = useMemo(() => {
+    const copy = [...allItems];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "value") {
+        cmp = bestPriceOf(a) - bestPriceOf(b);
+      } else if (sortBy === "condition") {
+        cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
+      } else if (sortBy === "insure") {
+        cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
+      } else {
+        cmp = compareValues(
+          (a as unknown as Record<string, unknown>)[sortBy],
+          (b as unknown as Record<string, unknown>)[sortBy],
+        );
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [allItems, sortBy, sortDir]);
 
   useEffect(() => {
     fetch("/api/iod")
@@ -87,7 +134,7 @@ export default function CollectiblesPage() {
       ) : (
         <div className="space-y-10">
           {IOD_CATEGORIES.map((cat) => {
-            const catItems = allItems.filter((i) => i.category === cat);
+            const catItems = sortedItems.filter((i) => i.category === cat);
             const page = pages[cat];
             const totalPages = Math.max(1, Math.ceil(catItems.length / PAGE_SIZE));
             const pageItems = catItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
@@ -120,9 +167,14 @@ export default function CollectiblesPage() {
                     <thead>
                       <tr className="bg-surface-2 border-b border-border">
                         {COLUMNS.map((col) => (
-                          <th key={col} className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-2.5 whitespace-nowrap">
-                            {col}
-                          </th>
+                          <SortableHeader
+                            key={col.label}
+                            label={col.label}
+                            field={col.field}
+                            currentSort={sortBy}
+                            currentDir={sortDir}
+                            onToggle={toggleSort}
+                          />
                         ))}
                       </tr>
                     </thead>

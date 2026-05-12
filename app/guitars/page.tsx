@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { GuitarItem, GuitarCategory, CATEGORY_LABELS, GUITAR_CATEGORIES, CONDITION_COLORS } from "@/lib/types";
 import ItemDetailModal from "@/components/ItemDetailModal";
+import SortableHeader from "@/components/forms/SortableHeader";
+import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
 
 const fmt = (price: number | null | undefined) => {
   if (price == null) return "—";
@@ -15,11 +17,26 @@ const fmt = (price: number | null | undefined) => {
   }).format(Number(price));
 };
 
-const COLUMNS = [
-  "Year", "Brand", "Model", "Color / Finish", "Condition",
-  "Short Description", "Buy Cost", "AI Est.", "My Value",
-  "Insured", "Insured Value", "Open to Sell",
+const COLUMNS: { label: string; field?: string }[] = [
+  { label: "Year", field: "year" },
+  { label: "Brand", field: "brand" },
+  { label: "Model", field: "model" },
+  { label: "Color / Finish", field: "color_finish" },
+  { label: "Condition", field: "condition" },
+  { label: "Short Description", field: "short_description" },
+  { label: "Buy Cost", field: "purchase_price" },
+  { label: "AI Est.", field: "latest_ai_price" },
+  { label: "My Value", field: "latest_user_price" },
+  { label: "Insured", field: "insure" },
+  { label: "Insured Value", field: "insurance_value" },
+  // "Open to Sell" is a placeholder for the future Sell flow — not sortable.
+  { label: "Open to Sell" },
 ];
+
+// Default-ascending columns when switching to a new sort. Matches the
+// pattern in the category-page tables: strings A→Z; numerics/dates
+// highest/newest first.
+const DEFAULT_ASC_FIELDS = new Set(["brand", "model", "color_finish", "short_description", "condition"]);
 
 const PAGE_SIZE = 15;
 
@@ -33,6 +50,46 @@ export default function GuitarsPage() {
     amplifiers: 0,
     pedals: 0,
   });
+
+  // Sort state — shared across all category sections on this page. Clicking
+  // a header in any section re-sorts every section the same way.
+  const [sortBy, setSortBy] = useState<string>("year");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = useCallback((field: string) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(DEFAULT_ASC_FIELDS.has(field) ? "asc" : "desc");
+      return field;
+    });
+    // Reset pagination on every category section when sort changes so the
+    // user always sees the new top of the list rather than a stale page.
+    setPages({ "electric-guitars": 0, "acoustic-guitars": 0, amplifiers: 0, pedals: 0 });
+  }, []);
+
+  const sortedItems = useMemo(() => {
+    const copy = [...allItems];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "value") {
+        cmp = bestPriceOf(a) - bestPriceOf(b);
+      } else if (sortBy === "condition") {
+        cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
+      } else if (sortBy === "insure") {
+        cmp = (a.insure ? 1 : 0) - (b.insure ? 1 : 0);
+      } else {
+        cmp = compareValues(
+          (a as unknown as Record<string, unknown>)[sortBy],
+          (b as unknown as Record<string, unknown>)[sortBy],
+        );
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [allItems, sortBy, sortDir]);
 
   useEffect(() => {
     async function fetchData() {
@@ -112,7 +169,8 @@ export default function GuitarsPage() {
       ) : (
         <div className="space-y-10">
           {GUITAR_CATEGORIES.map((cat) => {
-            const catItems = allItems.filter((i) => i.category === cat);
+            // Use the page-level sorted list, then filter to this section.
+            const catItems = sortedItems.filter((i) => i.category === cat);
             const page = pages[cat];
             const totalPages = Math.max(1, Math.ceil(catItems.length / PAGE_SIZE));
             const pageItems = catItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
@@ -148,12 +206,14 @@ export default function GuitarsPage() {
                     <thead>
                       <tr className="bg-surface-2 border-b border-border">
                         {COLUMNS.map((col) => (
-                          <th
-                            key={col}
-                            className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-2.5 whitespace-nowrap"
-                          >
-                            {col}
-                          </th>
+                          <SortableHeader
+                            key={col.label}
+                            label={col.label}
+                            field={col.field}
+                            currentSort={sortBy}
+                            currentDir={sortDir}
+                            onToggle={toggleSort}
+                          />
                         ))}
                       </tr>
                     </thead>
