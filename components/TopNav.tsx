@@ -45,7 +45,7 @@ export default function TopNav() {
       <div className="flex items-center gap-8">
         <Link href="/" className="flex items-center flex-shrink-0 group">
           <span className="font-headline text-xl font-bold text-accent tracking-widest uppercase">
-            Curatada
+            Vault 1
           </span>
         </Link>
 

@@ -385,7 +385,7 @@ export default function WatchCSVImportModal({ defaultCategory, onClose, onImport
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "curatada_watches_import_template.csv";
+    a.download = "vault1_watches_import_template.csv";
     a.click();
     URL.revokeObjectURL(url);
   };

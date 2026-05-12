@@ -87,7 +87,7 @@ export default function ModuleSelectionModal() {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-lg shadow-2xl mx-4">
         <h1 className="font-headline text-2xl font-bold text-accent tracking-widest uppercase mb-1">
-          Welcome to Curatada
+          Welcome to Vault 1
         </h1>
         <p className="text-text-dim text-sm mb-6">
           Choose which collections you&apos;d like to manage. You can change this anytime in settings.

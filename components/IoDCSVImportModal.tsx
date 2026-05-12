@@ -296,7 +296,7 @@ export default function IoDCSVImportModal({ defaultCategory, onClose, onImportCo
     const blob = new Blob([TEMPLATE_CSV], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "curatada_collectibles_import_template.csv"; a.click();
+    a.href = url; a.download = "vault1_collectibles_import_template.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 

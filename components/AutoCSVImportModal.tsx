@@ -308,7 +308,7 @@ export default function AutoCSVImportModal({ defaultCategory, onClose, onImportC
     const blob = new Blob([TEMPLATE_CSV], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "curatada_auto_import_template.csv"; a.click();
+    a.href = url; a.download = "vault1_auto_import_template.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 

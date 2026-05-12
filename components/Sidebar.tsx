@@ -506,7 +506,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-border px-6 py-4">
-        <p className="text-xs text-text-dim font-label">Curatada v0.1</p>
+        <p className="text-xs text-text-dim font-label">Vault 1 v0.1</p>
       </div>
     </aside>
   );
