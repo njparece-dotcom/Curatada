@@ -105,6 +105,29 @@ export async function r2GetPresignedUrl(key: string): Promise<string> {
   );
 }
 
+/**
+ * Fetch an R2 object's bytes as a Buffer. Used by the export route to
+ * embed image data in JSON backups (opt-in — see app/api/data/export).
+ * Throws if the object is missing; the caller decides whether that's
+ * fatal (export aborts) or recoverable (skip + warn).
+ */
+export async function r2GetObject(key: string): Promise<Buffer> {
+  const { client, bucket } = getClient();
+  const res = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key }),
+  );
+  if (!res.Body) {
+    throw new Error(`R2 object body missing for key: ${key}`);
+  }
+  // The S3 SDK on Node returns a `Readable` with a `transformToByteArray()`
+  // helper. Calling it materialises the whole object into memory — fine for
+  // images (capped at 10MB by /api/upload).
+  const bytes = await (
+    res.Body as { transformToByteArray: () => Promise<Uint8Array> }
+  ).transformToByteArray();
+  return Buffer.from(bytes);
+}
+
 export async function r2DeleteObjects(keys: string[]): Promise<void> {
   if (keys.length === 0) return;
   const { client, bucket } = getClient();

@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import path from "path";
+import fs from "fs/promises";
 import { authOptions } from "@/lib/auth";
 import { query } from "@/lib/db";
+import { r2IsConfigured, r2GetObject } from "@/lib/storage/r2";
 
-// Embed every item's full valuation history alongside the item so an
-// import re-creates the dashboard's "latest price" and the user's prior
-// AI valuations (which cost money to regenerate). Image rows are
-// deliberately not exported — the underlying files live on local disk
-// per the active deploy and can't roundtrip until object storage is in.
+// Embed every item's full valuation history alongside the item so an import
+// re-creates the dashboard's "latest price" and the user's prior AI valuations
+// (which cost money to regenerate). Image rows are embedded too — see the
+// "Images" section below for the bytes-vs-metadata tradeoff.
 
 interface Row { id: string; [key: string]: unknown; }
+
+interface ImageRow {
+  id: string;
+  filename: string;
+  original_name: string | null;
+  path: string;
+  mime_type: string | null;
+  size: number | null;
+  is_primary: boolean;
+  sort_order: number;
+  created_at: string;
+  moderation_status: string;
+  nsfw_score: string | null;
+  nsfw_categories: unknown;
+  // Carried only when include_image_data=true on the request. Base64-encoded
+  // raw bytes — see Images section below.
+  data_base64?: string;
+}
 
 async function withValuations(
   items: Row[],
@@ -34,13 +54,91 @@ async function withValuations(
   return items.map((i) => ({ ...i, valuations: byItem.get(i.id) ?? [] }));
 }
 
+// ── Images ───────────────────────────────────────────────────────────────────
+//
+// Always emit image-row metadata (id, filename, path, sort_order, moderation
+// columns, etc.) so the importer can recreate the rows verbatim — this also
+// preserves the NSFW.js verdict, which is expensive to regenerate.
+//
+// Image *bytes* are an opt-in: pass `include_image_data: true` on the export
+// request and each row gets a `data_base64` field with the raw object bytes.
+// The default (false) keeps the JSON small for "I'm migrating to a new
+// environment that shares my R2 bucket" use; bytes-on is the right choice
+// for "I want a real backup that survives an R2 wipe".
+//
+// On byte fetch failure (R2 object missing, disk path missing, etc.) we log
+// and skip the byte payload but still emit the row. A partial export beats
+// a thrown 500 — the importer side handles missing-bytes gracefully.
+const BYTE_CONCURRENCY = 8;
+
+async function readBytes(filename: string): Promise<Buffer | null> {
+  try {
+    if (r2IsConfigured()) {
+      return await r2GetObject(filename);
+    }
+    const fullPath = path.join(process.cwd(), "public", "uploads", filename);
+    return await fs.readFile(fullPath);
+  } catch (err) {
+    console.warn(`[export] failed to read bytes for ${filename}:`, err);
+    return null;
+  }
+}
+
+async function withImages(
+  items: Row[],
+  imagesTable: string,
+  fkColumn: string,
+  includeBytes: boolean,
+): Promise<Row[]> {
+  if (items.length === 0) return items;
+  const ids = items.map((i) => i.id);
+  const images = await query<ImageRow & { [key: string]: unknown }>(
+    `SELECT id, ${fkColumn}, filename, original_name, path, mime_type, size,
+            is_primary, sort_order, created_at,
+            moderation_status, nsfw_score, nsfw_categories
+       FROM ${imagesTable}
+      WHERE ${fkColumn} = ANY($1::uuid[])
+      ORDER BY sort_order ASC, is_primary DESC, created_at ASC`,
+    [ids],
+  );
+
+  if (includeBytes && images.length > 0) {
+    // Concurrent byte fetches with a small cap — avoids hammering R2 with
+    // hundreds of parallel GETs on a large export. 8 is well under any
+    // reasonable per-account rate limit and keeps wall-clock manageable.
+    for (let i = 0; i < images.length; i += BYTE_CONCURRENCY) {
+      const slice = images.slice(i, i + BYTE_CONCURRENCY);
+      await Promise.all(
+        slice.map(async (img) => {
+          const bytes = await readBytes(img.filename);
+          if (bytes) img.data_base64 = bytes.toString("base64");
+        }),
+      );
+    }
+  }
+
+  const byItem = new Map<string, ImageRow[]>();
+  for (const img of images) {
+    const itemId = img[fkColumn] as string;
+    const list = byItem.get(itemId) ?? [];
+    list.push(img);
+    byItem.set(itemId, list);
+  }
+  return items.map((i) => ({ ...i, images: byItem.get(i.id) ?? [] }));
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.user.id;
 
   try {
-    const { collections } = (await req.json()) as { collections: string[] };
+    const body = (await req.json()) as {
+      collections: string[];
+      include_image_data?: boolean;
+    };
+    const collections = body.collections;
+    const includeBytes = body.include_image_data === true;
 
     const result: Record<string, unknown[]> = {};
 
@@ -49,7 +147,8 @@ export async function POST(req: NextRequest) {
         `SELECT * FROM guitar_items WHERE user_id = $1 ORDER BY created_at`,
         [userId],
       );
-      result.guitars = await withValuations(items, "guitar_valuations", "guitar_item_id");
+      const withVals = await withValuations(items, "guitar_valuations", "guitar_item_id");
+      result.guitars = await withImages(withVals, "guitar_images", "guitar_item_id", includeBytes);
     }
 
     if (collections.includes("watches")) {
@@ -57,7 +156,8 @@ export async function POST(req: NextRequest) {
         `SELECT * FROM watch_items WHERE user_id = $1 ORDER BY created_at`,
         [userId],
       );
-      result.watches = await withValuations(items, "watch_valuations", "watch_item_id");
+      const withVals = await withValuations(items, "watch_valuations", "watch_item_id");
+      result.watches = await withImages(withVals, "watch_images", "watch_item_id", includeBytes);
     }
 
     if (collections.includes("automobiles")) {
@@ -65,7 +165,8 @@ export async function POST(req: NextRequest) {
         `SELECT * FROM automobiles WHERE user_id = $1 ORDER BY created_at`,
         [userId],
       );
-      result.automobiles = await withValuations(items, "auto_valuations", "auto_id");
+      const withVals = await withValuations(items, "auto_valuations", "auto_id");
+      result.automobiles = await withImages(withVals, "auto_images", "auto_id", includeBytes);
     }
 
     if (collections.includes("collectibles")) {
@@ -73,7 +174,8 @@ export async function POST(req: NextRequest) {
         `SELECT * FROM items_of_distinction WHERE user_id = $1 ORDER BY created_at`,
         [userId],
       );
-      result.collectibles = await withValuations(items, "iod_valuations", "iod_id");
+      const withVals = await withValuations(items, "iod_valuations", "iod_id");
+      result.collectibles = await withImages(withVals, "iod_images", "iod_id", includeBytes);
     }
 
     // CUR-9: include insurance_valuation_norms as a top-level export key so
@@ -90,12 +192,15 @@ export async function POST(req: NextRequest) {
     );
 
     const payload = {
-      // Bumped to 1.1 to signal the new fields (insurance/archive cols on
-      // every item, plus the new insurance_valuation_norms top-level key).
-      // The importer accepts both 1.0 and 1.1 — older payloads default
-      // insure=false, archived_at=null.
-      version: "1.1",
+      // 1.2: image rows now round-trip (metadata always; bytes when
+      // `include_image_data: true`). Importer accepts 1.0/1.1/1.2 — older
+      // payloads simply have no `images` array.
+      version: "1.2",
       exported_at: new Date().toISOString(),
+      // Surfaces the byte-embedding choice in the payload itself so a viewer
+      // (or future tooling) can tell at a glance whether this file is a
+      // metadata-only or full backup.
+      includes_image_data: includeBytes,
       collections: result,
       insurance_valuation_norms: insuranceValuationNorms,
     };

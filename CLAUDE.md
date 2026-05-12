@@ -309,8 +309,17 @@ curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
   `/api/upload` writes to R2 when configured; `/api/uploads/[...path]`
   302-redirects to a 1-hour presigned URL. Local-disk fallback preserved
   for dev. Image rows from before this still 404 (files never persisted
-  on the old Railway disk anyway); re-upload as needed. Follow-up:
-  add image rows back to the export/import roundtrip.
+  on the old Railway disk anyway); re-upload as needed.
+- **Export/import images** — done. Payload version bumped to `1.2`;
+  importer accepts `1.0`/`1.1`/`1.2`. Image-row metadata (filename, path,
+  sort_order, moderation columns) always rides along — that data is
+  expensive to regenerate (moderation history especially). Image bytes
+  are opt-in via the "Include image data" checkbox in the export modal;
+  when set, each row gets a `data_base64` field and the importer
+  re-uploads to R2/disk before inserting. Default off keeps the JSON
+  small for same-bucket roundtrips. `/api/data/import` is excluded from
+  the NextAuth middleware matcher so large bodies aren't truncated; it
+  does its own session check.
 - **Image moderation Tier-1** (NSFW.js at upload time) — done. Migration
   017 added moderation columns to all four image tables;
   `lib/moderation/nsfw.ts` classifies every upload; `/api/upload`
