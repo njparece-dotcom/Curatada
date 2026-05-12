@@ -310,6 +310,12 @@ export default function AutoCategoryPage() {
           items={sortedItems}
           onItemClick={(item) => setSelectedItem(item)}
           onDelete={handleItemDeleted}
+          selectedIds={selectedIds}
+          onSelectChange={toggleSelect}
+          onSelectAllToggle={() => {
+            if (selectedIds.size === items.length && items.length > 0) clearSelection();
+            else setSelectedIds(new Set(items.map((i) => i.id)));
+          }}
         />
       )}
 
