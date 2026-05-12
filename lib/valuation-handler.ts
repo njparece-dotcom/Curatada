@@ -248,3 +248,117 @@ export function makeValuationHandler<T extends ValuableItem>(
     }
   };
 }
+
+// ── Insurance value handler (manual trigger, no fresh AI call) ────────────────
+//
+// CUR-5 auto-triggers an insurance computation as a side-effect of running
+// a fresh AI sale-price valuation. But if the user already had an AI value
+// before they checked "Include in insurance schedule," there's no way to
+// roll the existing sale price forward into an insurance value short of
+// running the AI valuation again (which would burn tokens for no reason).
+//
+// This factory generates a cheap POST endpoint that:
+//   1. Looks up the latest AI valuation for the item (or falls back to the
+//      user's purchase price).
+//   2. Fetches/researches the per-category insurance norm.
+//   3. Computes insurance_value via the same pure helper as CUR-5.
+//   4. UPDATEs the item row.
+//
+// Skips when:
+//   - item.insure is false (caller error; returns 400)
+//   - item.insurance_value_source is 'user_override' (don't clobber manual)
+//   - No AI valuation AND no purchase_price (returns 400 with a hint)
+
+export function makeInsuranceValueHandler<T extends ValuableItem>(c: CollectionConfig) {
+  return async function POST(
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const { id } = await params;
+
+      const item = await queryOne<T>(
+        `SELECT * FROM ${c.table} WHERE id = $1 AND user_id = $2`,
+        [id, session.user.id],
+      );
+      if (!item) {
+        return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      }
+
+      if (item.insure !== true) {
+        return NextResponse.json(
+          { error: "This item is not flagged for insurance. Tick \"Include in insurance schedule\" on the Edit modal first." },
+          { status: 400 },
+        );
+      }
+
+      if (item.insurance_value_source === "user_override") {
+        return NextResponse.json(
+          { error: "This item has a user-set insurance value. Clear it in the Edit modal before auto-computing a new one." },
+          { status: 400 },
+        );
+      }
+
+      // Find the latest AI sale-price valuation for this item.
+      const latestAi = await queryOne<{ price: string | number }>(
+        `SELECT price FROM ${c.valuationsTable}
+          WHERE ${c.valuationFkColumn} = $1 AND valuation_type = 'ai'
+          ORDER BY created_at DESC LIMIT 1`,
+        [id],
+      );
+      const aiPrice = latestAi?.price != null ? Number(latestAi.price) : null;
+      const userPurchasePrice = item.purchase_price != null ? Number(item.purchase_price) : null;
+
+      if ((aiPrice == null || !isFinite(aiPrice) || aiPrice <= 0) &&
+          (userPurchasePrice == null || !isFinite(userPurchasePrice) || userPurchasePrice <= 0)) {
+        return NextResponse.json(
+          {
+            error: "No AI valuation or purchase price available. Run \"Value this item\" (or set a purchase price) before computing an insurance value.",
+            code: "no_source_value",
+          },
+          { status: 400 },
+        );
+      }
+
+      const norm = await getOrResearchNorm(c.moduleSlug, item.category);
+      const computed = computeInsuranceValue(aiPrice, userPurchasePrice, norm);
+
+      if (computed.value == null || computed.source == null) {
+        return NextResponse.json(
+          {
+            error: "Could not compute an insurance value (insurance norm research unavailable). Please try again in a minute.",
+            code: "norm_unavailable",
+          },
+          { status: 503 },
+        );
+      }
+
+      await query(
+        `UPDATE ${c.table}
+            SET insurance_value = $1,
+                insurance_value_source = $2,
+                insurance_value_date = NOW()${c.patchSetUpdatedAt ? ", updated_at = NOW()" : ""}
+          WHERE id = $3 AND user_id = $4`,
+        [computed.value, computed.source, id, session.user.id],
+      );
+
+      console.log(
+        `[insurance-value] manual compute for ${c.label} id=${id} value=${computed.value.toFixed(2)} source=${computed.source}`,
+      );
+
+      return NextResponse.json({
+        insurance_value: computed.value,
+        insurance_value_source: computed.source,
+        insurance_value_date: computed.date,
+      });
+    } catch (error) {
+      console.error(`POST /api/${c.label}/[id]/insurance-value error:`, error);
+      return NextResponse.json({ error: "Failed to compute insurance value" }, { status: 500 });
+    }
+  };
+}
