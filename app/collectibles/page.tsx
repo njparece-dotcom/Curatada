@@ -13,7 +13,7 @@ import {
 } from "@/lib/types";
 import IoDDetailModal from "@/components/IoDDetailModal";
 import SortableHeader from "@/components/forms/SortableHeader";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 const fmtRaw = (n: number | null | undefined) => {
   if (n == null) return "—";
@@ -70,7 +70,9 @@ export default function CollectiblesPage() {
     const copy = [...allItems];
     copy.sort((a, b) => {
       let cmp = 0;
-      if (sortBy === "value") {
+      if (sortBy === "brand") {
+        cmp = compareBrandThenYear(a, b);
+      } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {
         cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);

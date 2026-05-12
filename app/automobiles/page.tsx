@@ -13,7 +13,7 @@ import {
 } from "@/lib/types";
 import AutomobileDetailModal from "@/components/AutomobileDetailModal";
 import SortableHeader from "@/components/forms/SortableHeader";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 const fmtRaw = (n: number | null | undefined) => {
   if (n == null) return "—";
@@ -56,8 +56,9 @@ export default function AutomobilesPage() {
   });
 
   // Sort state — shared across both category sections.
-  const [sortBy, setSortBy] = useState<string>("year");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Default: Brand ASC with Year ASC as a within-brand tiebreak.
+  const [sortBy, setSortBy] = useState<string>("brand");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const toggleSort = useCallback((field: string) => {
     setSortBy((prev) => {
@@ -75,7 +76,9 @@ export default function AutomobilesPage() {
     const copy = [...allItems];
     copy.sort((a, b) => {
       let cmp = 0;
-      if (sortBy === "value") {
+      if (sortBy === "brand") {
+        cmp = compareBrandThenYear(a, b);
+      } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {
         cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);

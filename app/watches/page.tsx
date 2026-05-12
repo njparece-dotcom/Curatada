@@ -7,7 +7,7 @@ import Link from "next/link";
 import { WatchItem, WatchCategory, WATCH_CATEGORY_LABELS, WATCH_CATEGORIES, CONDITION_COLORS } from "@/lib/types";
 import WatchDetailModal from "@/components/WatchDetailModal";
 import SortableHeader from "@/components/forms/SortableHeader";
-import { compareValues, conditionOrdinal, bestPriceOf } from "@/lib/sortHelpers";
+import { compareValues, conditionOrdinal, bestPriceOf, compareBrandThenYear } from "@/lib/sortHelpers";
 
 const fmtRaw = (price: number | null | undefined) => {
   if (price == null) return "—";
@@ -52,8 +52,9 @@ export default function WatchesPage() {
   });
 
   // Sort state — shared across all category sections.
-  const [sortBy, setSortBy] = useState<string>("year");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Default: Brand ASC with Year ASC as a within-brand tiebreak.
+  const [sortBy, setSortBy] = useState<string>("brand");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const toggleSort = useCallback((field: string) => {
     setSortBy((prev) => {
@@ -71,7 +72,9 @@ export default function WatchesPage() {
     const copy = [...allItems];
     copy.sort((a, b) => {
       let cmp = 0;
-      if (sortBy === "value") {
+      if (sortBy === "brand") {
+        cmp = compareBrandThenYear(a, b);
+      } else if (sortBy === "value") {
         cmp = bestPriceOf(a) - bestPriceOf(b);
       } else if (sortBy === "condition") {
         cmp = conditionOrdinal(a.condition) - conditionOrdinal(b.condition);
