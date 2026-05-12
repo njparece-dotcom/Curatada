@@ -8,9 +8,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { authOptions } from "@/lib/auth";
-import { queryOne } from "@/lib/db";
+import { query, queryOne } from "@/lib/db";
 import type { CollectionConfig } from "@/lib/collections/types";
-import type { ComparableSale } from "@/lib/types";
+import type { ComparableSale, InsuranceValueSource } from "@/lib/types";
+import { getOrResearchNorm, computeInsuranceValue } from "@/lib/insurance-valuation";
 
 const client = new Anthropic();
 
@@ -95,7 +96,19 @@ async function callWithRetry(prompt: string, maxRetries = 3): Promise<AnthropicR
   throw new Error("Max retries exceeded");
 }
 
-export function makeValuationHandler<T extends { id: string }>(
+// Item shape the handler needs to read for insurance auto-trigger (CUR-5).
+// Each module's actual item type is a superset of these fields — TypeScript's
+// structural typing means callers pass GuitarItem/WatchItem/etc. and it just
+// works.
+interface ValuableItem {
+  id: string;
+  category: string;
+  insure?: boolean;
+  purchase_price?: number | null;
+  insurance_value_source?: InsuranceValueSource | null;
+}
+
+export function makeValuationHandler<T extends ValuableItem>(
   c: CollectionConfig,
   buildPrompt: (item: T) => string,
 ) {
@@ -160,6 +173,59 @@ export function makeValuationHandler<T extends { id: string }>(
         ],
       );
 
+      // ── Auto-trigger insurance valuation (CUR-5) ──────────────────────────
+      //
+      // When the item has insure=true AND the user hasn't manually set an
+      // override, compute the insurance value from the fresh AI sale price
+      // and the per-category multiplier. Best-effort: failures are logged
+      // but never block the parent valuation response (matches the PRD's
+      // stale-norm / degraded-mode requirement).
+
+      let insuranceFields: {
+        insurance_value: number | null;
+        insurance_value_source: InsuranceValueSource | null;
+        insurance_value_date: string | null;
+      } = {
+        insurance_value: null,
+        insurance_value_source: null,
+        insurance_value_date: null,
+      };
+
+      if (item.insure === true && item.insurance_value_source !== "user_override") {
+        try {
+          const norm = await getOrResearchNorm(c.moduleSlug, item.category);
+          const computed = computeInsuranceValue(
+            parsed.suggested_price,
+            item.purchase_price ?? null,
+            norm,
+          );
+          if (computed.value != null && computed.source != null) {
+            await query(
+              `UPDATE ${c.table}
+                  SET insurance_value = $1,
+                      insurance_value_source = $2,
+                      insurance_value_date = NOW()${c.patchSetUpdatedAt ? ", updated_at = NOW()" : ""}
+                WHERE id = $3 AND user_id = $4`,
+              [computed.value, computed.source, id, session.user.id],
+            );
+            insuranceFields = {
+              insurance_value: computed.value,
+              insurance_value_source: computed.source,
+              insurance_value_date: computed.date,
+            };
+            console.log(
+              `[valuation] computed insurance value for ${c.label} id=${id} value=${computed.value.toFixed(2)} source=${computed.source}`,
+            );
+          } else {
+            console.log(`[valuation] insurance computation skipped (no norm or zero multiplier) for ${c.label} id=${id}`);
+          }
+        } catch (insErr) {
+          // Logged but never raised. The user got their sale-price valuation;
+          // they can re-run later to retry insurance.
+          console.error(`[valuation] insurance auto-trigger failed for ${c.label} id=${id}`, insErr);
+        }
+      }
+
       return NextResponse.json({
         valuation,
         suggested_price: parsed.suggested_price,
@@ -167,6 +233,7 @@ export function makeValuationHandler<T extends { id: string }>(
         price_high: parsed.price_high,
         comparable_sales: parsed.comparable_sales,
         analysis: parsed.analysis,
+        ...insuranceFields,
       });
     } catch (error) {
       console.error(`POST /api/${c.label}/[id]/value error:`, error);
