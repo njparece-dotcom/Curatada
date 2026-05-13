@@ -5,9 +5,8 @@
 // automobiles, and items of distinction.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
-import { authOptions } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-auth";
 import { query, queryOne } from "@/lib/db";
 import type { CollectionConfig } from "@/lib/collections/types";
 import type { ComparableSale, InsuranceValueSource } from "@/lib/types";
@@ -114,11 +113,11 @@ export function makeValuationHandler<T extends ValuableItem>(
 ) {
   // Next 15: params is now a Promise; await before reading.
   return async function POST(
-    _request: NextRequest,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
   ) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -271,11 +270,11 @@ export function makeValuationHandler<T extends ValuableItem>(
 
 export function makeInsuranceValueHandler<T extends ValuableItem>(c: CollectionConfig) {
   return async function POST(
-    _request: NextRequest,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
   ) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
