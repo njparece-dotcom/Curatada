@@ -315,8 +315,15 @@ export function makeItemHandlers(c: CollectionConfig) {
 
       const { id } = await params;
 
+      // Single-item GET needs the joined `latest_*_price` columns so
+      // the iOS detail screen can render the AI ESTIMATE / MY VALUE
+      // tiles. The web app never hits this endpoint for an item that
+      // wants to show valuations (its modal inherits them from the
+      // list query), so the historical `false` here was a latent gap
+      // that only surfaced once the native client started fetching
+      // items by id at navigation time.
       const item = await queryOne(
-        `${listSelectSql(c, false)}
+        `${listSelectSql(c, true)}
          WHERE ${c.alias}.id = $1 AND ${c.alias}.user_id = $2
          GROUP BY ${c.alias}.id`,
         [id, session.user.id]
