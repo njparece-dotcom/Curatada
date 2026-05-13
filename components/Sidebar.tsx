@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
@@ -230,8 +231,21 @@ export default function Sidebar() {
   return (
     <aside className="w-64 flex-shrink-0 bg-[#0c0e10] border-r border-border flex flex-col h-full overflow-y-auto">
       {/* Branding */}
-      <div className="px-6 pt-6 pb-5">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-text-dim mt-0.5">Obsession, Curated</p>
+      <div className="px-6 pt-6 pb-5 flex items-center gap-3">
+        <Image
+          src="/brand/vault1-medallion.png"
+          alt="Vault 1"
+          width={40}
+          height={40}
+          priority
+          className="flex-shrink-0"
+        />
+        <div className="min-w-0">
+          <h1 className="font-headline text-base font-semibold text-accent tracking-wider leading-none">
+            Vault 1
+          </h1>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-text-dim mt-1">Obsession, Curated</p>
+        </div>
       </div>
 
       {/* Navigation */}

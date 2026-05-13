@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,7 +34,15 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0c0e10] flex items-center justify-center px-4">
       <div className="bg-surface border border-border rounded-2xl p-8 shadow-2xl w-full max-w-md">
         {/* Header */}
-        <div className="mb-8 text-center">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <Image
+            src="/brand/vault1-medallion.png"
+            alt="Vault 1"
+            width={96}
+            height={96}
+            priority
+            className="mb-4"
+          />
           <h1 className="font-headline text-2xl font-bold text-accent tracking-widest uppercase">
             Vault 1
           </h1>
