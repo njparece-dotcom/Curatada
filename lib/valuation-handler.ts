@@ -23,10 +23,19 @@ interface ValuationResult {
 }
 
 // Robustly extract a JSON object from text that may contain prose, markdown
-// code fences, or multiple blocks.
+// code fences, web_search citations, or multiple braced fragments.
+//
+// Strategy in order of preference:
+//   1. Pull a fenced ```json block; try to parse it.
+//   2. Walk the string for balanced-brace regions, parse each, and keep the
+//      LARGEST one that parses successfully. This handles preambles like
+//      `Looking at the {prior search} results, here's the valuation: { … }`
+//      that would defeat a naive `indexOf('{')` / `lastIndexOf('}')` slice.
+//   3. Try parsing the whole text as a last resort.
 function extractJSON(text: string): string | null {
   const cleaned = text.trim();
 
+  // 1) Fenced ```json
   const fence = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) {
     const candidate = fence[1].trim();
@@ -36,16 +45,40 @@ function extractJSON(text: string): string | null {
     } catch { /* fall through */ }
   }
 
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start !== -1 && end > start) {
-    const candidate = cleaned.slice(start, end + 1);
-    try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch { /* fall through */ }
+  // 2) Largest balanced-brace block. Walk every `{`, track depth, find
+  //    its matching `}`, try to parse the slice. Keep the longest one
+  //    that parses cleanly.
+  let bestCandidate: string | null = null;
+  for (let i = 0; i < cleaned.length; i++) {
+    if (cleaned[i] !== "{") continue;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let j = i; j < cleaned.length; j++) {
+      const ch = cleaned[j];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = cleaned.slice(i, j + 1);
+          try {
+            JSON.parse(candidate);
+            if (!bestCandidate || candidate.length > bestCandidate.length) {
+              bestCandidate = candidate;
+            }
+          } catch { /* not valid, keep walking */ }
+          break;  // move on to the next `{`
+        }
+      }
+    }
   }
+  if (bestCandidate) return bestCandidate;
 
+  // 3) Last resort — parse the whole thing.
   try {
     JSON.parse(cleaned);
     return cleaned;
@@ -58,6 +91,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface AnthropicResponse {
   content: { type: string; text: string }[];
+  // Surface fields exposed by the Messages API. Typed loose because the
+  // SDK's exported types are big; we only need these for debug logging
+  // when extractJSON misses.
+  stop_reason?: string | null;
+  usage?: { input_tokens?: number; output_tokens?: number };
+  model?: string;
 }
 
 async function callWithRetry(prompt: string, maxRetries = 3): Promise<AnthropicResponse> {
@@ -70,7 +109,12 @@ async function callWithRetry(prompt: string, maxRetries = 3): Promise<AnthropicR
         // (sold) and an optional STEP 2 (active for-sale). max_tokens covers
         // 3-5 comparables + a 1-2 sentence analysis with headroom.
         model: "claude-haiku-4-5",
-        max_tokens: 1500,
+        // 4096 (up from 1500) — web_search tool turns burn tokens before
+        // the model gets to write the final JSON, and 1500 was occasionally
+        // truncating mid-payload (extractJSON would then 502 the request).
+        // Haiku supports far higher caps; 4096 is comfortably above the
+        // ~1.5k tokens a populated comparable_sales[] needs.
+        max_tokens: 4096,
         tools: [
           {
             type: "web_search_20250305",
@@ -142,7 +186,22 @@ export function makeValuationHandler<T extends ValuableItem>(
 
       const jsonText = extractJSON(allText);
       if (!jsonText) {
-        console.error(`No JSON found in AI response for ${c.label}:`, allText.slice(0, 500));
+        // Log everything we need to debug a Haiku 502 from Railway logs:
+        // the stop reason (`max_tokens` would indicate truncation), token
+        // usage (helps decide if the cap needs another bump), and the
+        // full response text — NOT a 500-char slice, since the issue is
+        // almost always at the END of the response where citations or
+        // post-JSON commentary trip the extractor.
+        console.error(
+          `[valuation] No parseable JSON in AI response for ${c.label} id=${id}`,
+          {
+            model: response.model,
+            stop_reason: response.stop_reason,
+            usage: response.usage,
+            content_length: allText.length,
+            content: allText,
+          },
+        );
         return NextResponse.json(
           { error: "AI returned an unparseable response. Please try again." },
           { status: 502 },
@@ -153,7 +212,16 @@ export function makeValuationHandler<T extends ValuableItem>(
       try {
         parsed = JSON.parse(jsonText);
       } catch {
-        console.error(`Failed to parse extracted JSON for ${c.label}:`, jsonText.slice(0, 500));
+        console.error(
+          `[valuation] Failed to parse extracted JSON for ${c.label} id=${id}`,
+          {
+            model: response.model,
+            stop_reason: response.stop_reason,
+            usage: response.usage,
+            candidate_length: jsonText.length,
+            candidate: jsonText,
+          },
+        );
         return NextResponse.json(
           { error: "AI returned an unparseable response. Please try again." },
           { status: 502 },
