@@ -10,6 +10,16 @@ const nextConfig = {
         source: "/uploads/:path*",
         destination: "/api/uploads/:path*",
       },
+      // Apple App Site Association (AASA) for the Vault 1 iOS app's
+      // Universal Links. Apple requires the file at
+      // `/.well-known/apple-app-site-association` with NO `.json`
+      // extension and `Content-Type: application/json`. Next App Router
+      // doesn't love dot-prefixed segment names (`.well-known/...`), so
+      // we serve from `/api/aasa` and rewrite the public URL here.
+      {
+        source: "/.well-known/apple-app-site-association",
+        destination: "/api/aasa",
+      },
     ];
   },
   images: {
