@@ -378,10 +378,13 @@ curl -H "Authorization: Bearer $ACCESS" https://vault1.co/api/status
   UNION queue with status chips + score slider, approve/block actions.
   Gated by the `ADMIN_EMAILS` env-var allowlist (`lib/admin.ts`). Tab
   strip is scaffolded for the future "Public Gallery review" surface.
-- **CI gate for auto-merge** — not done. `gh pr merge --auto` is enabled
-  on the repo but with no required status check it merges immediately.
-  ~30 lines of GitHub Actions YAML (`tsc --noEmit` + `next build`) plus
-  branch protection requiring the check would make `--auto` actually wait.
+- **CI gate for auto-merge** — done. `.github/workflows/ci.yml` runs
+  `npm ci` → `tsc --noEmit` → `next build` on every PR to `main` (job
+  name `build`). Branch protection on `main` requires the `build`
+  context: non-strict (no rebase requirement), no required reviews,
+  linear history, `enforce_admins: false` (admins can override in
+  emergencies), no force-push, no deletions. `gh pr merge --auto`
+  now actually waits for green.
 - **`purchase_date` field on Auto / IoD modals** — DB + API accept it; the
   Add/Edit modal field JSX doesn't expose it. ~80 lines across four files.
 - **Disable `claimOrphanedData`** — keep on while you're still bootstrapping
