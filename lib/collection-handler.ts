@@ -119,6 +119,13 @@ function validateBody(
   }
 
   for (const f of c.fields) {
+    // On PATCH (isCreate=false), only validate fields that are actually
+    // present in the body. Absent fields are left untouched by the
+    // partial-SET clause built below, so requiring them here would
+    // block legitimate partial updates — e.g. an image-only PATCH
+    // from the iOS app would otherwise fail with "brand is required"
+    // even though the body never tried to change `brand`.
+    if (!isCreate && !(f.name in body)) continue;
     if (!f.required) continue;
     const v = body[f.name];
     if (v == null) return `${f.name} is required`;
@@ -397,29 +404,51 @@ export function makeItemHandlers(c: CollectionConfig) {
         return NextResponse.json({ error: validationError }, { status: 400 });
       }
 
-      // Build the SET clause: category uses COALESCE so it is preserved if the
-      // PATCH body omits it; the rest of the configured fields overwrite.
-      const setClauses: string[] = ["category = COALESCE($1, category)"];
-      const values: unknown[] = [body.category || null];
-      let nextPlaceholder = 2;
+      // Build the SET clause. Only include columns that are explicitly
+      // present in the request body — absent fields are preserved.
+      // This makes partial PATCHes safe (e.g. an image-only PATCH from
+      // the iOS app) without nuking unrelated columns. Sending a
+      // present-but-empty value still clears the column, which matches
+      // the previous behaviour for keys the client passed in.
+      const setClauses: string[] = [];
+      const values: unknown[] = [];
+      let nextPlaceholder = 1;
+      if ("category" in body) {
+        setClauses.push(`category = $${nextPlaceholder}`);
+        values.push(body.category || null);
+        nextPlaceholder++;
+      }
       for (const f of c.fields) {
+        if (!(f.name in body)) continue;
         setClauses.push(`${f.name} = $${nextPlaceholder}`);
         values.push(normalizeField(body[f.name], f));
         nextPlaceholder++;
       }
-      if (c.patchSetUpdatedAt) {
+      if (c.patchSetUpdatedAt && setClauses.length > 0) {
         setClauses.push("updated_at = NOW()");
       }
-      const idPlaceholder = nextPlaceholder;
-      const userIdPlaceholder = nextPlaceholder + 1;
-      values.push(id, session.user.id);
 
-      const item = await queryOne(
-        `UPDATE ${c.table} SET ${setClauses.join(", ")}
-         WHERE id = $${idPlaceholder} AND user_id = $${userIdPlaceholder}
-         RETURNING *`,
-        values
-      );
+      // Ownership-check + RETURNING in one go. If the body had no
+      // column-level changes (image-only PATCH), an empty SET clause
+      // would be invalid SQL — fall back to a SELECT that does the
+      // same ownership-check + RETURNING-equivalent shape.
+      let item: Record<string, unknown> | null;
+      if (setClauses.length > 0) {
+        const idPlaceholder = nextPlaceholder;
+        const userIdPlaceholder = nextPlaceholder + 1;
+        values.push(id, session.user.id);
+        item = await queryOne(
+          `UPDATE ${c.table} SET ${setClauses.join(", ")}
+           WHERE id = $${idPlaceholder} AND user_id = $${userIdPlaceholder}
+           RETURNING *`,
+          values
+        );
+      } else {
+        item = await queryOne(
+          `SELECT * FROM ${c.table} WHERE id = $1 AND user_id = $2`,
+          [id, session.user.id]
+        );
+      }
       if (!item) {
         return NextResponse.json({ error: "Item not found" }, { status: 404 });
       }
