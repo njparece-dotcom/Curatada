@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getApiSession } from "@/lib/api-auth";
 import { query, queryOne } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +15,22 @@ interface IoDValuation {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getApiSession(request);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { id } = await params;
+    const owner = await queryOne<{ id: string }>(
+      "SELECT id FROM items_of_distinction WHERE id = $1 AND user_id = $2",
+      [id, session.user.id]
+    );
+    if (!owner) {
+      return NextResponse.json({ error: "Item of distinction not found" }, { status: 404 });
+    }
     const valuations = await query<IoDValuation>(
       `SELECT * FROM iod_valuations
        WHERE iod_id = $1
@@ -37,6 +49,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getApiSession(request);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { id } = await params;
     const body = await request.json();
     const { price, notes } = body;
@@ -45,12 +61,11 @@ export async function POST(
       return NextResponse.json({ error: "A valid price is required" }, { status: 400 });
     }
 
-    // Verify parent exists
-    const parent = await queryOne<{ id: string }>(
-      `SELECT id FROM items_of_distinction WHERE id = $1`,
-      [id]
+    const owner = await queryOne<{ id: string }>(
+      "SELECT id FROM items_of_distinction WHERE id = $1 AND user_id = $2",
+      [id, session.user.id]
     );
-    if (!parent) {
+    if (!owner) {
       return NextResponse.json({ error: "Item of distinction not found" }, { status: 404 });
     }
 
