@@ -29,6 +29,11 @@ export default withAuth(
 // `lib/api-auth.ts`. (`api/auth` was already excluded for NextAuth's own
 // flow; the new /api/auth/token, /refresh, /social routes are covered by
 // that same prefix match.)
+//
+// `api/aasa` + the `.well-known/apple-app-site-association` public path
+// are excluded so Apple's CDN can fetch the AASA file without going
+// through NextAuth's redirect. The route is unauthenticated by design
+// and returns a static JSON body.
 export const config = {
-  matcher: ["/((?!login|register|api/auth|api/status|api/pursuits/run-search|api/mgmt|api/upload|api/data/import|_next/static|_next/image|favicon\\.ico|uploads).*)"],
+  matcher: ["/((?!login|register|api/auth|api/status|api/aasa|\\.well-known|api/pursuits/run-search|api/mgmt|api/upload|api/data/import|_next/static|_next/image|favicon\\.ico|uploads).*)"],
 };
