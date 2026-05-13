@@ -4,10 +4,9 @@
 // configs.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import path from "path";
 import fs from "fs/promises";
-import { authOptions } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-auth";
 import { query, queryOne } from "@/lib/db";
 import { r2IsConfigured, r2DeleteObjects } from "@/lib/storage/r2";
 import type { CollectionConfig, FieldSpec } from "@/lib/collections/types";
@@ -210,7 +209,7 @@ async function insertImagePaths(
 export function makeListHandlers(c: CollectionConfig) {
   async function GET(request: NextRequest) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -247,7 +246,7 @@ export function makeListHandlers(c: CollectionConfig) {
 
   async function POST(request: NextRequest) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -305,11 +304,11 @@ type ItemParams = Promise<{ id: string }>;
 
 export function makeItemHandlers(c: CollectionConfig) {
   async function GET(
-    _request: NextRequest,
+    request: NextRequest,
     { params }: { params: ItemParams }
   ) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -336,11 +335,11 @@ export function makeItemHandlers(c: CollectionConfig) {
   }
 
   async function DELETE(
-    _request: NextRequest,
+    request: NextRequest,
     { params }: { params: ItemParams }
   ) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -378,7 +377,7 @@ export function makeItemHandlers(c: CollectionConfig) {
     { params }: { params: ItemParams }
   ) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -503,7 +502,7 @@ type BulkAction = "set_insure" | "archive" | "delete";
 export function makeBulkActionHandler(c: CollectionConfig) {
   return async function POST(request: NextRequest) {
     try {
-      const session = await getServerSession(authOptions);
+      const session = await getApiSession(request);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
