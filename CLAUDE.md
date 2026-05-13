@@ -292,6 +292,53 @@ curl -H "Authorization: Bearer $MGMT_API_TOKEN" \
      https://curatada-production.up.railway.app/api/mgmt/v1/health
 ```
 
+## Bearer-token API (for the native iOS client)
+
+A parallel set of auth endpoints exists alongside NextAuth so native clients
+(starting with the iOS app, see the sibling `Vault1-iOS` repo) can authenticate
+without round-tripping through the cookie-based flow:
+
+- `POST /api/auth/token`  — email + password → `{ access, refresh, user }`
+- `POST /api/auth/social` — `{ provider: 'apple'|'google', idToken, displayName? }`
+                            → verifies against Apple/Google JWKS, find-or-creates
+                            the user, returns `{ access, refresh, user }`
+- `POST /api/auth/refresh` — `{ refresh }` → rotated `{ access, refresh, user }`.
+                             Replay of a revoked refresh token revokes the
+                             entire chain (theft detection).
+- `GET  /api/status`       — `Authorization: Bearer <access>` → `{ user }`
+
+Implementation:
+- `lib/api-tokens.ts` — `jose`-signed 15-minute HS256 access JWT (claims
+  `iss=vault1-api`, `aud=vault1-client`) + opaque 30-day refresh token whose
+  SHA-256 hash is persisted in `refresh_tokens` (migration 018).
+- `lib/social-verify.ts` — Apple + Google ID-token verification via cached
+  remote JWKS.
+- `lib/api-auth.ts` — `getApiSession(req)` accepts either a Bearer access
+  token OR a NextAuth session cookie. Existing routes will be migrated to
+  use this in place of `getServerSession(authOptions)` so they accept both
+  clients without duplicating handlers.
+
+Required env vars (all optional — endpoint returns 503 if its provider is
+unconfigured):
+- `NEXTAUTH_SECRET` — reused as the HMAC key for the access JWT.
+- `VAULT1_APPLE_AUDIENCES` — comma-separated list of accepted `aud` values
+  for Apple ID tokens (the iOS bundle ID plus any Services IDs). Falls back
+  to `APPLE_ID` when unset.
+- `VAULT1_GOOGLE_AUDIENCES` — same for Google (iOS client ID + web client
+  ID). Falls back to `GOOGLE_CLIENT_ID` when unset.
+
+Middleware: `/api/auth/*` and `/api/status` are excluded from `withAuth`
+(see `middleware.ts`); the new routes do their own auth checks.
+
+Smoke test once deployed:
+
+```bash
+ACCESS=$(curl -s -X POST https://vault1.co/api/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"me@example.com","password":"…"}' | jq -r .access)
+curl -H "Authorization: Bearer $ACCESS" https://vault1.co/api/status
+```
+
 ## Phase status
 
 - **Phase 1** (auth lockdown — `/api/upload`, all `[id]/value`, auto/iod
