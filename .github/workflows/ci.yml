@@ -1,0 +1,41 @@
+name: ci
+
+# Required status check that gates merging into main. Mirrors what we used to
+# run manually pre-PR (`tsc --noEmit && next build`) — that's the only thing
+# Railway's build phase does, so a green workflow ≈ a deployable commit.
+#
+# Job name is `build`. Branch-protection on `main` requires the
+# `build` context — don't rename without updating the protection rule.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # `next build` succeeds without DATABASE_URL / NEXTAUTH_SECRET because
+      # `lib/db.ts` lazy-inits the pg Pool and NextAuth providers are gated
+      # behind env-var presence checks. Don't reintroduce module-level Pool
+      # construction or this step will start failing.
+      - name: Build
+        run: npm run build
