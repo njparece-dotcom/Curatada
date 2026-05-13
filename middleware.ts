@@ -23,6 +23,12 @@ export default withAuth(
 // exports with `include_image_data: true` can run to hundreds of MB
 // (base64-encoded image bytes inline). The route does its own session
 // check via getServerSession(authOptions).
+//
+// `api/status` is excluded because it's the Bearer-auth probe used by the
+// native client — its own handler resolves either Bearer or cookie via
+// `lib/api-auth.ts`. (`api/auth` was already excluded for NextAuth's own
+// flow; the new /api/auth/token, /refresh, /social routes are covered by
+// that same prefix match.)
 export const config = {
-  matcher: ["/((?!login|register|api/auth|api/pursuits/run-search|api/mgmt|api/upload|api/data/import|_next/static|_next/image|favicon\\.ico|uploads).*)"],
+  matcher: ["/((?!login|register|api/auth|api/status|api/pursuits/run-search|api/mgmt|api/upload|api/data/import|_next/static|_next/image|favicon\\.ico|uploads).*)"],
 };
