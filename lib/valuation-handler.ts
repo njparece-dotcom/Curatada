@@ -109,12 +109,16 @@ async function callWithRetry(prompt: string, maxRetries = 3): Promise<AnthropicR
         // (sold) and an optional STEP 2 (active for-sale). max_tokens covers
         // 3-5 comparables + a 1-2 sentence analysis with headroom.
         model: "claude-haiku-4-5",
-        // 4096 (up from 1500) — web_search tool turns burn tokens before
-        // the model gets to write the final JSON, and 1500 was occasionally
-        // truncating mid-payload (extractJSON would then 502 the request).
-        // Haiku supports far higher caps; 4096 is comfortably above the
-        // ~1.5k tokens a populated comparable_sales[] needs.
-        max_tokens: 4096,
+        // 8192 (was 4096, originally 1500). The web_search tool turns burn
+        // a surprising amount of budget — the model reads + reasons over
+        // verbose search results before it ever gets to write the final
+        // JSON. If it hits the cap mid-tool-use it emits no text block at
+        // all, and extractJSON 502s the request. 8192 is Haiku 4.5's
+        // standard ceiling and gives generous headroom over the ~1.5k
+        // tokens a populated comparable_sales[] actually needs. Output
+        // tokens are billed by real length, not the cap, so this is free
+        // on success-case runs.
+        max_tokens: 8192,
         tools: [
           {
             type: "web_search_20250305",
@@ -179,31 +183,44 @@ export function makeValuationHandler<T extends ValuableItem>(
       const prompt = buildPrompt(item);
       const response = await callWithRetry(prompt);
 
-      const allText = response.content
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n");
+      // Count the block types so we can tell "model emitted text we
+      // couldn't parse" apart from "model emitted no text block at all"
+      // (the latter means it ran out of budget mid-tool-use).
+      const textBlocks = response.content.filter((b) => b.type === "text");
+      const blockTypes = response.content.map((b) => b.type);
+      const allText = textBlocks.map((b) => b.text).join("\n");
 
       const jsonText = extractJSON(allText);
       if (!jsonText) {
         // Log everything we need to debug a Haiku 502 from Railway logs:
         // the stop reason (`max_tokens` would indicate truncation), token
-        // usage (helps decide if the cap needs another bump), and the
-        // full response text — NOT a 500-char slice, since the issue is
-        // almost always at the END of the response where citations or
-        // post-JSON commentary trip the extractor.
+        // usage, the response's block-type sequence, and the full
+        // response text — NOT a slice, since the issue is almost always
+        // at the END where citations or post-JSON commentary trip the
+        // extractor.
+        const diag = {
+          model: response.model,
+          stop_reason: response.stop_reason,
+          usage: response.usage,
+          block_types: blockTypes,
+          text_block_count: textBlocks.length,
+          content_length: allText.length,
+        };
         console.error(
           `[valuation] No parseable JSON in AI response for ${c.label} id=${id}`,
-          {
-            model: response.model,
-            stop_reason: response.stop_reason,
-            usage: response.usage,
-            content_length: allText.length,
-            content: allText,
-          },
+          { ...diag, content: allText },
         );
+        // Surface the diagnostic in the *user-facing* error body too. For
+        // a beta this is the fastest debug loop — the failure screenshot
+        // names the exact failure mode (truncation vs. no-text-block vs.
+        // genuinely-unparseable) without needing Railway log access. The
+        // iOS client renders the `error` string verbatim.
+        const reason =
+          textBlocks.length === 0
+            ? `model produced no text block (stop_reason: ${diag.stop_reason ?? "unknown"}) — likely ran out of token budget during web search`
+            : `model returned ${diag.content_length} chars with no parseable JSON (stop_reason: ${diag.stop_reason ?? "unknown"})`;
         return NextResponse.json(
-          { error: "AI returned an unparseable response. Please try again." },
+          { error: `AI valuation failed: ${reason}. This has been logged.`, debug: diag },
           { status: 502 },
         );
       }
